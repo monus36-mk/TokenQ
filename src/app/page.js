@@ -270,15 +270,7 @@ export default function Home() {
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
                                 <span className="qt-lbl" style={{ color: 'var(--green-dark)' }}>{nowServingToken}</span>
-                                <div className="qt-dots">
-                                  <div className="qt-dot done"></div>
-                                  <div className="qt-dot done"></div>
-                                  <div className={`qt-dot ${selectedToken.status === 'serving' ? 'cur' : 'done'}`}></div>
-                                  <div className={`qt-dot ${selectedToken.status === 'serving' ? 'done' : 'cur'}`}></div>
-                                  <div className="qt-dot"></div>
-                                  <div className="qt-dot"></div>
-                                  <div className="qt-dot"></div>
-                                </div>
+                                <div style={{ flex: 1, height: '2px', background: 'var(--border2)', margin: '0 12px' }}></div>
                                 <span className="qt-lbl" style={{ color: 'var(--amber)' }}>{selectedToken.tokenNumber}</span>
                               </div>
                               <div style={{ display: 'flex', gap: '8px' }}>
@@ -291,10 +283,6 @@ export default function Home() {
                                     {selectedToken.status === 'serving' ? 'Serving' : estWaitMin === 0 ? 'Ready / No wait' : `~${estWaitMin}m`}
                                   </div>
                                   <div style={{ fontSize: '11px', color: 'var(--text2)' }}>est. wait</div>
-                                </div>
-                                <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--blue)' }}>6 min</div>
-                                  <div style={{ fontSize: '11px', color: 'var(--text2)' }}>to reach</div>
                                 </div>
                               </div>
                             </div>

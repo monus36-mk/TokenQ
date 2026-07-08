@@ -840,17 +840,9 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Now serving</span>
                   <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Your token</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
                   <span className="qt-lbl" style={{ color: 'var(--green-dark)' }}>A-12</span>
-                  <div className="qt-dots">
-                    <div className="qt-dot done"></div>
-                    <div className="qt-dot done"></div>
-                    <div className="qt-dot cur"></div>
-                    <div className="qt-dot"></div>
-                    <div className="qt-dot"></div>
-                    <div className="qt-dot"></div>
-                    <div className="qt-dot"></div>
-                  </div>
+                  <div style={{ flex: 1, height: '2px', background: 'var(--border2)', margin: '0 12px' }}></div>
                   <span className="qt-lbl" style={{ color: 'var(--amber)' }}>{confirmedBooking.tokenNumber}</span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -861,10 +853,6 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
                     <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--amber)' }}>~35m</div>
                     <div style={{ fontSize: '11px', color: 'var(--text2)' }}>est. wait</div>
-                  </div>
-                  <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--blue)' }}>6 min</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text2)' }}>to reach</div>
                   </div>
                 </div>
               </div>
