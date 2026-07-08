@@ -454,13 +454,7 @@ export default function Home() {
                     </div>
                   </div>
                   
-                  {/* Navigation */}
-                  <div className="bottom-nav">
-                    <div className="bnav" onClick={() => onNavigate('home')}><div className="bnav-icon">🏠</div>Home</div>
-                    <div className="bnav" onClick={() => onNavigate('home')}><div className="bnav-icon">🔍</div>Search</div>
-                    <div className="bnav active"><div className="bnav-icon">🎟️</div>Tokens</div>
-                    <div className="bnav" onClick={() => onNavigate('profile')}><div className="bnav-icon">👤</div>Profile</div>
-                  </div>
+
                 </div>
               )}
 
@@ -535,13 +529,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Bottom Navigation */}
-                  <div className="bottom-nav">
-                    <div className="bnav" onClick={() => onNavigate('home')}><div className="bnav-icon">🏠</div>Home</div>
-                    <div className="bnav" onClick={() => onNavigate('home')}><div className="bnav-icon">🔍</div>Search</div>
-                    <div className="bnav" onClick={() => onNavigate('tokens')}><div className="bnav-icon">🎟️</div>Tokens</div>
-                    <div className="bnav active"><div className="bnav-icon">👤</div>Profile</div>
-                  </div>
+
                 </div>
               )}
             </>

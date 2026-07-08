@@ -180,21 +180,7 @@ export default function PatientHome({
         </div>
       </div>
 
-      {/* Bottom Nav Bar */}
-      <div className="bottom-nav">
-        <div className="bnav active" onClick={() => onNavigate('home')}>
-          <div className="bnav-icon">🏠</div>Home
-        </div>
-        <div className="bnav" onClick={() => onNavigate('search')}>
-          <div className="bnav-icon">🔍</div>Search
-        </div>
-        <div className="bnav" onClick={() => onNavigate('tokens')}>
-          <div className="bnav-icon">🎟️</div>Tokens
-        </div>
-        <div className="bnav" onClick={() => onNavigate('profile')}>
-          <div className="bnav-icon">👤</div>Profile
-        </div>
-      </div>
+
 
     </div>
   );
