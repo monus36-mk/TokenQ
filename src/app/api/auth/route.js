@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 import Clinic from '@/models/Clinic';
@@ -91,9 +92,12 @@ export async function POST(request) {
           return NextResponse.json({ success: false, error: 'Email is already registered' }, { status: 400 });
         }
         
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
         const user = await User.create({
           email: emailLower,
-          password,
+          password: hashedPassword,
           name,
           phone,
           age: Number(age),
@@ -159,7 +163,13 @@ export async function POST(request) {
       await dbConnect();
       const clinic = await Clinic.findOne({ adminEmail: emailLower });
       if (clinic) {
-        if (clinic.adminPassword !== password) {
+        let isMatch = false;
+        if (clinic.adminPassword && (clinic.adminPassword.startsWith('$2b$') || clinic.adminPassword.startsWith('$2a$'))) {
+          isMatch = await bcrypt.compare(password, clinic.adminPassword);
+        } else {
+          isMatch = clinic.adminPassword === password;
+        }
+        if (!isMatch) {
           return NextResponse.json({ success: false, error: 'Invalid clinic admin password' }, { status: 401 });
         }
         const clinicAdminUser = {
@@ -180,7 +190,13 @@ export async function POST(request) {
       await dbConnect();
       const user = await User.findOne({ email: emailLower });
       if (user) {
-        if (user.password !== password) {
+        let isMatch = false;
+        if (user.password && (user.password.startsWith('$2b$') || user.password.startsWith('$2a$'))) {
+          isMatch = await bcrypt.compare(password, user.password);
+        } else {
+          isMatch = user.password === password;
+        }
+        if (!isMatch) {
           return NextResponse.json({ success: false, error: 'Invalid password' }, { status: 401 });
         }
         return NextResponse.json({ success: true, user, source: 'database' });

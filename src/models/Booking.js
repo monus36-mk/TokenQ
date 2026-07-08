@@ -10,6 +10,11 @@ const BookingSchema = new mongoose.Schema({
     ref: 'Clinic',
     required: true,
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  },
   patientName: {
     type: String,
     required: true,

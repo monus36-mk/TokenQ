@@ -89,6 +89,66 @@ export default function AuthScreens({ onLoginSuccess }) {
     }
   };
 
+  // Stage 3: Send verification OTP to email and go to stage 'otp'
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    if (!name || name.trim().length < 2) {
+      setError('Please enter your name');
+      return;
+    }
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    if (!age || Number(age) <= 0 || Number(age) > 115) {
+      setError('Please enter a valid age');
+      return;
+    }
+    if (!password || password.length < 4) {
+      setError('Password must be at least 4 characters long');
+      return;
+    }
+
+    setError('');
+    setIsSubmitting(true);
+    setIsOtpFallback(false);
+
+    // Generate a random 4-digit code
+    const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
+    setSentOtp(generatedCode);
+    setEnteredOtp('');
+
+    try {
+      const response = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: generatedCode
+        })
+      });
+      const json = await response.json();
+      if (json.success) {
+        if (json.message && json.message.includes('logged to server console')) {
+          // If SMTP not configured, fallback to showing code on screen
+          setIsOtpFallback(true);
+        }
+        setStage('otp');
+      } else {
+        console.warn('Failed to send OTP email:', json.error);
+        setIsOtpFallback(true);
+        setStage('otp');
+      }
+    } catch (err) {
+      console.warn('Error sending OTP email, falling back to testing code:', err);
+      setIsOtpFallback(true);
+      setStage('otp');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Stage 3: Create account directly and log in
   const handleDirectRegister = async (e) => {
     e.preventDefault();
@@ -280,7 +340,7 @@ export default function AuthScreens({ onLoginSuccess }) {
 
         {/* STAGE 3: PATIENT SIGNUP DETAILS */}
         {stage === 'signup' && (
-          <form onSubmit={handleDirectRegister} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ textAlign: 'center', marginBottom: '8px' }}>
               <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
                 Create Patient Profile
@@ -391,7 +451,7 @@ export default function AuthScreens({ onLoginSuccess }) {
             </div>
 
             <button type="submit" className="btn-p" style={{ marginTop: '8px' }}>
-              Register & Log In ✓
+              Send Verification Code 📧
             </button>
 
             <button

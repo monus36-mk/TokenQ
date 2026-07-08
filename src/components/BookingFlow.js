@@ -205,7 +205,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
       describeComplaint: complaintDesc,
       severity,
       slot: selectedSlot,
-      feePaid: fee
+      feePaid: fee,
+      userId: currentUser?._id
     };
 
     try {

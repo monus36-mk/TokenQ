@@ -9,11 +9,38 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Email and OTP are required' }, { status: 400 });
     }
 
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+    const smtpUsername = process.env.SMTP_USERNAME;
+    const smtpPassword = process.env.SMTP_PASSWORD;
     const emailUser = process.env.EMAIL_USER || 'rare36monus@gmail.com';
     const emailPass = process.env.EMAIL_PASS;
 
-    if (!emailPass) {
-      console.warn('EMAIL_PASS environment variable is missing.');
+    let transporter;
+    let fromEmail;
+
+    if (smtpHost && smtpUsername && smtpPassword) {
+      fromEmail = smtpUsername.trim();
+      transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: fromEmail,
+          pass: smtpPassword
+        }
+      });
+    } else if (emailPass) {
+      fromEmail = emailUser;
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: emailUser,
+          pass: emailPass
+        }
+      });
+    } else {
+      console.warn('Neither SMTP_* variables nor EMAIL_PASS is configured.');
       return NextResponse.json({ 
         success: true, 
         message: 'OTP logged to server console (SMTP not configured)',
@@ -21,16 +48,8 @@ export async function POST(request) {
       });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      }
-    });
-
     const mailOptions = {
-      from: emailUser,
+      from: fromEmail,
       to: email.trim().toLowerCase(),
       subject: 'TokenQ - Verify your Email',
       html: `

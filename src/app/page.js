@@ -61,7 +61,7 @@ export default function Home() {
         setBookings(bookingsJson.data);
       }
     } catch (e) {
-      console.error('Error fetching data:', e);
+      console.warn('Error fetching data:', e);
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +86,12 @@ export default function Home() {
   }, [bookings, selectedToken]);
 
   // Filter bookings for the active patient
-  const userBookings = bookings.filter(b => b.patientPhone === userPhone);
+  const userBookings = bookings.filter(b => {
+    if (b.userId && currentUser?._id) {
+      return b.userId === currentUser._id;
+    }
+    return b.patientPhone === userPhone;
+  });
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);

@@ -55,7 +55,8 @@ export async function POST(request) {
       describeComplaint,
       severity,
       slot,
-      feePaid
+      feePaid,
+      userId
     } = body;
 
     if (!clinicId || !patientName || !patientAge || !patientGender || !patientPhone || !slot) {
@@ -73,11 +74,25 @@ export async function POST(request) {
 
       const chosenDoctor = doctorName || clinic.doctorName || 'Doctor';
 
-      // Generate token number (find all bookings for this clinic today and increment)
+      // Check if this patient already has an active booking today at this clinic
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
+
+      const existingActiveBooking = await Booking.findOne({
+        clinicId,
+        patientName: patientName.trim(),
+        status: { $in: ['waiting', 'serving'] },
+        createdAt: { $gte: startOfDay, $lte: endOfDay }
+      });
+
+      if (existingActiveBooking) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Patient "${patientName}" already has an active booking at this clinic today (Token ${existingActiveBooking.tokenNumber})` 
+        }, { status: 400 });
+      }
 
       const todaysBookings = await Booking.find({
         clinicId,
@@ -113,7 +128,8 @@ export async function POST(request) {
         severity,
         slot,
         feePaid: feePaid || 0,
-        status: 'waiting'
+        status: 'waiting',
+        userId: userId || null
       });
 
       // Update clinic booked count
@@ -126,6 +142,18 @@ export async function POST(request) {
       
       // Seed fallback token number computation
       const clinicMockBookings = getMockBookingsByClinic(clinicId);
+
+      const existingMock = clinicMockBookings.find(b => 
+        b.patientName.trim().toLowerCase() === patientName.trim().toLowerCase() && 
+        (b.status === 'waiting' || b.status === 'serving')
+      );
+      if (existingMock) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Patient "${patientName}" already has an active booking at this clinic (Token ${existingMock.tokenNumber})` 
+        }, { status: 400 });
+      }
+
       let nextNum = 19;
       if (clinicMockBookings.length > 0) {
         const numbers = clinicMockBookings.map(b => {
@@ -151,7 +179,8 @@ export async function POST(request) {
         severity,
         slot,
         feePaid,
-        status: 'waiting'
+        status: 'waiting',
+        userId: userId || null
       });
 
       return NextResponse.json({ success: true, data: newMockBooking, source: 'mock' });
