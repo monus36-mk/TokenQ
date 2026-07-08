@@ -20,8 +20,8 @@ export default function AuthScreens({ onLoginSuccess }) {
   // Stage 1: Check Email
   const handleCheckEmail = async (e) => {
     e.preventDefault();
-    if (!email || !/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(email.trim().toLowerCase())) {
-      setError('Please enter a valid Gmail address (must end with @gmail.com)');
+    if (!email || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim().toLowerCase())) {
+      setError('Please enter a valid email address');
       return;
     }
 
