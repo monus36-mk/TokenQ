@@ -85,6 +85,41 @@ export default function Home() {
     }
   }, [bookings, selectedToken]);
 
+  const handleCancelBooking = async () => {
+    if (!selectedToken) return;
+    if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+    try {
+      const isMock = typeof selectedToken._id === 'string' && selectedToken._id.startsWith('mock_');
+      if (isMock) {
+        alert('Booking cancelled successfully (Demo).');
+        setPatientScreen('home');
+        return;
+      }
+
+      const response = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateBookingStatus',
+          bookingId: selectedToken._id,
+          status: 'cancelled'
+        })
+      });
+      const json = await response.json();
+      if (json.success) {
+        alert('Booking cancelled successfully.');
+        fetchData();
+        setPatientScreen('home');
+      } else {
+        alert('Failed to cancel booking: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error cancelling booking.');
+    }
+  };
+
   // Filter bookings for the active patient
   const userBookings = bookings.filter(b => {
     if (b.userId && currentUser?._id) {
@@ -331,7 +366,14 @@ export default function Home() {
                               </div>
                             )}
  
-                            <button className="btn-s" onClick={handleBackToHome}>← Back to home</button>
+                            <button 
+                              className="btn-p" 
+                              style={{ width: '100%', marginTop: '16px', background: '#DC2626', color: 'white', border: 'none' }} 
+                              onClick={handleCancelBooking}
+                            >
+                              Cancel Booking
+                            </button>
+                            <button className="btn-s" style={{ marginTop: '8px' }} onClick={handleBackToHome}>← Back to home</button>
                           </div>
                         </div>
                       </>
