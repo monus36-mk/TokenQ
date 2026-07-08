@@ -1,4 +1,6 @@
-import mongoose from 'mongoose';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const mongoose = require('mongoose');
 
 const ClinicSchema = new mongoose.Schema({
   name: {
@@ -7,35 +9,35 @@ const ClinicSchema = new mongoose.Schema({
   },
   doctorName: {
     type: String,
-    required: true,
+    required: false,
   },
   specialty: {
     type: String,
-    required: true,
+    required: false,
   },
   address: {
     type: String,
-    required: true,
+    required: false,
   },
   fee: {
     type: Number,
-    required: true,
+    required: false,
   },
   timings: {
     type: String,
-    required: true,
+    required: false,
   },
   contact: {
     type: String,
-    required: true,
+    required: false,
   },
   rating: {
     type: Number,
-    default: 4.5,
+    default: 0,
   },
   ratingCount: {
     type: Number,
-    default: 1,
+    default: 0,
   },
   totalTokens: {
     type: Number,
@@ -53,19 +55,36 @@ const ClinicSchema = new mongoose.Schema({
     type: String,
     default: '🏥',
   },
-  isPaused: {
-    type: Boolean,
-    default: false,
+  activeDays: {
+    type: [String],
+    default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   },
-  delayMinutes: {
-    type: Number,
-    default: 0,
+  doctors: [{
+    name: { type: String, required: true },
+    specialty: { type: String, required: true },
+    timings: { type: String, required: true },
+    session: { type: String, default: 'Morning' },
+    isUnavailable: { type: Boolean, default: false },
+    isPaused: { type: Boolean, default: false },
+    delayMinutes: { type: Number, default: 0 }
+  }],
+  adminEmail: {
+    type: String,
+    lowercase: true,
+    trim: true
   },
-  isUnavailable: {
-    type: Boolean,
-    default: false,
-  }
+  adminPassword: {
+    type: String
+  },
+  reviews: [{
+    userName: { type: String, required: true },
+    rating: { type: Number, required: true },
+    comment: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }]
 });
 
-// Avoid compiling the model multiple times in Next.js development mode
-export default mongoose.models.Clinic || mongoose.model('Clinic', ClinicSchema);
+if (mongoose.models && mongoose.models.Clinic) {
+  delete mongoose.models.Clinic;
+}
+export default mongoose.model('Clinic', ClinicSchema);

@@ -18,6 +18,10 @@ if (!cached) {
 }
 
 async function dbConnect() {
+  if (process.env.USE_MOCK_DATA === 'true') {
+    throw new Error('USE_MOCK_DATA is enabled. Bypassing database connection.');
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -25,6 +29,7 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 2000, // Fail fast if MongoDB is not reachable
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {

@@ -44,6 +44,7 @@ export async function POST(request) {
     const body = await request.json();
     const {
       clinicId,
+      doctorName,
       patientName,
       patientAge,
       patientGender,
@@ -70,6 +71,8 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Clinic not found' }, { status: 404 });
       }
 
+      const chosenDoctor = doctorName || clinic.doctorName || 'Doctor';
+
       // Generate token number (find all bookings for this clinic today and increment)
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -78,19 +81,18 @@ export async function POST(request) {
 
       const todaysBookings = await Booking.find({
         clinicId,
+        doctorName: chosenDoctor,
         createdAt: { $gte: startOfDay, $lte: endOfDay }
       });
 
       let nextNum = 1;
       if (todaysBookings.length > 0) {
-        // Find max token number digit
         const numbers = todaysBookings.map(b => {
           const match = b.tokenNumber.match(/\d+/);
           return match ? parseInt(match[0], 10) : 0;
         });
         nextNum = Math.max(...numbers) + 1;
       } else {
-        // Fallback or seed start (in index.html, Ramesh starts serving around A-12, let's start at 19 if it's Ramesh and empty, or just 1)
         nextNum = clinic.name.includes('Ramesh') ? 19 : 1;
       }
 
@@ -99,6 +101,7 @@ export async function POST(request) {
       const newBooking = await Booking.create({
         tokenNumber,
         clinicId,
+        doctorName: chosenDoctor,
         patientName,
         patientAge,
         patientGender,
@@ -109,7 +112,7 @@ export async function POST(request) {
         describeComplaint,
         severity,
         slot,
-        feePaid,
+        feePaid: feePaid || 0,
         status: 'waiting'
       });
 

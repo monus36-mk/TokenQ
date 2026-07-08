@@ -47,12 +47,14 @@
 
 body {
   font-family: 'DM Sans', sans-serif;
-  background: var(--bg);
+  background: white;
   min-height: 100vh;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 24px 16px 40px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  margin: 0;
 }
 
 /* PHONE WRAPPER SIMULATION */
@@ -1107,6 +1109,12 @@ body {
   gap: 7px;
 }
 
+.stat-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
 .stat4 {
   background: rgba(255, 255, 255, .1);
   border-radius: var(--radius-sm);
@@ -1315,3 +1323,744 @@ body {
   font-size: 13px;
   color: var(--text2);
 }
+
+/* DESKTOP LAYOUT GRID */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.desktop-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  width: 100%;
+  align-items: center;
+}
+
+.desktop-info {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  body {
+    padding: 60px 24px;
+    align-items: center;
+  }
+  .desktop-layout {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+  .desktop-info {
+    display: flex;
+  }
+}
+
+.brand-badge {
+  background: var(--green-light);
+  color: var(--green-dark);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: var(--pill);
+  align-self: flex-start;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+.desktop-title {
+  font-size: 46px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+  letter-spacing: -1px;
+  margin-bottom: 18px;
+}
+
+.desktop-title span {
+  color: var(--green);
+}
+
+.desktop-desc {
+  font-size: 17px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.feature-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.feature-text h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.feature-text p {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.4;
+}
+
+/* FLOATING SMS NOTIFICATION */
+.sms-banner {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  background: rgba(26, 26, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  color: white;
+  z-index: 1000;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  animation: slideDownSMS 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownSMS {
+  from {
+    transform: translateY(-80px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.sms-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.sms-body {
+  flex: 1;
+}
+
+.sms-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.sms-text {
+  font-size: 13px;
+  color: white;
+  line-height: 1.3;
+}
+
+.sms-text strong {
+  color: var(--green-mid);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  background: rgba(255,255,255,0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* KEYPAD FOR UPI PIN */
+.pin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 270px;
+  margin: 16px auto 0;
+}
+
+.pin-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  background: var(--surface2);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 auto;
+  transition: all 0.1s;
+}
+
+.pin-btn:active {
+  background: var(--text);
+  color: white;
+  transform: scale(0.95);
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  background: transparent;
+  transition: all 0.15s;
+}
+
+.pin-dot.filled {
+  background: var(--text);
+  border-color: var(--text);
+  transform: scale(1.1);
+}
+
+/* CREDIT CARD UI */
+.credit-card {
+  width: 100%;
+  height: 170px;
+  background: linear-gradient(135deg, #1f2937, #111827);
+  border-radius: var(--radius);
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.credit-card::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cc-brand {
+  font-size: 16px;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -0.5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cc-chip {
+  width: 32px;
+  height: 24px;
+  background: linear-gradient(135deg, #ffd700, #b8860b);
+  border-radius: 4px;
+}
+
+.cc-number {
+  font-family: 'DM Mono', monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
+  margin: 15px 0;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.cc-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+}
+
+.cc-val {
+  font-size: 13px;
+  color: white;
+  font-family: 'DM Mono', monospace;
+  margin-top: 2px;
+}
+
+/* BANK OTP POPUP */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.bank-modal {
+  background: white;
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+  overflow: hidden;
+  animation: modalScale 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScale {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bank-header {
+  background: var(--blue);
+  color: white;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bank-body {
+  padding: 18px 16px;
+}
+
+.bank-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.bank-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+/* CHECKMARK ANIMATION */
+.success-checkmark {
+  width: 80px;
+  height: 80px;
+  margin: 30px auto;
+}
+
+.checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 4;
+  stroke-miterlimit: 10;
+  stroke: var(--green);
+  fill: none;
+  animation: strokeCircle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.checkmark-kick {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke-width: 4;
+  stroke: var(--green);
+  fill: none;
+  animation: strokeCheck 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+}
+
+@keyframes strokeCircle {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes strokeCheck {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.pulse-glow {
+  animation: pulseGlow 1.5s infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    box-shadow: 0 0 4px rgba(29, 158, 117, 0.3);
+  }
+  to {
+    box-shadow: 0 0 16px rgba(29, 158, 117, 0.8);
+  }
+}
+
+/* RESPONSIVE LAYOUT OVERRIDES */
+@media (min-width: 768px) {
+  body {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 100vh !important;
+    background: #f4f3ee !important;
+  }
+
+  .app-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
+  }
+
+  /* Make containers fill screen height and scroll naturally */
+  .scrollable {
+    overflow: visible !important;
+    height: auto !important;
+    flex: none !important;
+  }
+
+  /* Hide mobile simulator components */
+  .statusbar {
+    display: none !important;
+  }
+
+  .bottom-nav {
+    display: none !important;
+  }
+}
+
+/* UNIFIED GLOBAL HEADER */
+.global-hdr {
+  background: white;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.global-hdr-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.global-logo {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-logo span {
+  color: var(--green);
+}
+
+.global-nav {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.desktop-nav-tabs {
+  display: flex;
+  gap: 8px;
+  margin-left: 24px;
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
+
+@media (max-width: 767px) {
+  .desktop-nav-tabs {
+    display: none !important;
+  }
+}
+
+.global-nav-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text2);
+}
+
+.global-nav-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.global-nav-btn.active {
+  background: var(--text);
+  color: white;
+}
+
+.global-user-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.global-user-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.global-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.global-user-role {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.global-logout-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--red);
+  transition: all 0.15s ease;
+}
+
+.global-logout-btn:hover {
+  background: var(--red-light);
+}
+
+/* RESPONSIVE CLINIC GRID */
+.clinics-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+@media (min-width: 768px) {
+  .clinics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .clinics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* PATIENT WORKFLOW SCALING CONTAINER */
+.patient-layout-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  background: var(--surface);
+  min-height: 100vh;
+}
+
+@media (min-width: 768px) {
+  .patient-layout-wrap {
+    max-width: 800px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.06);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+}
+
+@media (min-width: 1024px) {
+  .patient-layout-wrap {
+    max-width: 1100px;
+  }
+}
+
+
+
+
+
+/* RESPONSIVE LAYOUT CONTAINER */
+.responsive-layout-wrap {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* TWO COLUMN RESPONSIVE GRID FOR CLINIC DETAILS */
+.detail-grid-wrap {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .detail-grid-wrap {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: start;
+  }
+}
+
+/* THREE COLUMN RESPONSIVE GRID FOR ADMIN DASHBOARD */
+.admin-desktop-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .admin-desktop-grid {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: start;
+  }
+}
+
+.admin-col {
+  display: block;
+}
+
+@media (max-width: 1023px) {
+  .admin-col {
+    display: none;
+  }
+  .admin-col.active-col {
+    display: block;
+  }
+}
+
+/* RESPONSIVE AUTH CARD */
+.auth-container-card {
+  width: 100%;
+  max-width: 440px;
+  margin: 60px auto;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
+  padding: 32px 24px;
+}
+
+@media (max-width: 767px) {
+  .auth-container-card {
+    margin: 10px auto;
+    box-shadow: none;
+    border: none;
+    padding: 16px;
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+/* LANDING PAGE SPLIT CONTAINER */
+.landing-split-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  width: 100%;
+  max-width: 1100px;
+  margin: 40px auto;
+  align-items: center;
+}
+
+.landing-marketing-panel {
+  display: none;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .landing-split-container {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+  .landing-marketing-panel {
+    display: flex;
+  }
+}
+
+/* MOBILE HEADER ADJUSTMENTS */
+@media (max-width: 767px) {
+  .global-hdr-content {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  .hdr-left {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .hdr-right {
+    justify-content: center !important;
+    width: 100% !important;
+    gap: 12px !important;
+  }
+}
+

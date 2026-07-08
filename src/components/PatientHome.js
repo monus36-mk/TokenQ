@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
 
+const isClinicOpen = (clinic) => {
+  if (!clinic) return false;
+  if (clinic.isUnavailable) return false;
+  if (!clinic.doctors || clinic.doctors.length === 0) return false;
+  
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayDay = days[new Date().getDay()];
+  if (clinic.activeDays && !clinic.activeDays.includes(todayDay)) {
+    return false;
+  }
+  return true;
+};
+
 export default function PatientHome({ 
   clinics, 
   userBookings, 
@@ -7,7 +20,8 @@ export default function PatientHome({
   onSelectToken, 
   onNavigate, 
   searchQuery, 
-  setSearchQuery 
+  setSearchQuery,
+  currentUser
 }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -33,9 +47,31 @@ export default function PatientHome({
         <div className="home-header-top">
           <div>
             <div className="app-brand">Token<span>Q</span></div>
-            <div className="loc">📍 Thanjavur, Tamil Nadu</div>
+            <div className="loc">📍 {currentUser?.city || 'Thanjavur'}, Tamil Nadu</div>
           </div>
-          <div className="notif-btn">🔔</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 500 }}>
+              Hi, {currentUser?.name?.split(' ')[0] || 'Patient'}!
+            </span>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('tokenq_user');
+                window.location.reload();
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.18)',
+                color: 'white',
+                border: 'none',
+                padding: '3px 7px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              Logout 🚪
+            </button>
+          </div>
         </div>
         <div className="search-bar">
           <span>🔍</span>
@@ -100,34 +136,42 @@ export default function PatientHome({
           </div>
 
           {filteredClinics.length > 0 ? (
-            filteredClinics.map(clinic => (
-              <div key={clinic._id} className="card" onClick={() => onSelectClinic(clinic)}>
-                <div className="card-row">
-                  <div className="card-icon" style={{ background: clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE' }}>
-                    {clinic.icon || '🏥'}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div className="card-name">{clinic.name}</div>
-                    <div className="card-meta">📍 {clinic.address} · {clinic.specialty}</div>
-                    <div className="card-pills">
-                      <span className={`pill ${clinic.isUnavailable ? 'pr' : 'pg'}`}>
-                        {clinic.isUnavailable ? 'Closed' : 'Open'}
-                      </span>
-                      <span className="pill pa">
-                        {clinic.bookedCount}/{clinic.totalTokens} tokens
-                      </span>
-                      <span className="pill pb">
-                        {clinic.isUnavailable ? 'No wait' : `${clinic.avgWaitTime} wait`}
-                      </span>
-                      {clinic.delayMinutes > 0 && (
-                        <span className="pill pr">Delayed +{clinic.delayMinutes}m</span>
+            <div className="clinics-grid">
+              {filteredClinics.map(clinic => (
+                <div key={clinic._id} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
+                  <div className="card-row">
+                    <div className="card-icon" style={{ background: clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE' }}>
+                      {clinic.icon || '🏥'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div className="card-name">{clinic.name}</div>
+                      <div className="card-meta">📍 {clinic.address} · {clinic.specialty}</div>
+                      <div className="card-pills" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        <span className={`pill ${!isClinicOpen(clinic) ? 'pr' : 'pg'}`}>
+                          {!isClinicOpen(clinic) ? 'Closed' : 'Open'}
+                        </span>
+                        <span className="pill pa">
+                          {clinic.bookedCount} booked today
+                        </span>
+                        <span className="pill pb">
+                          {!isClinicOpen(clinic) ? 'No wait' : `${clinic.avgWaitTime} wait`}
+                        </span>
+                        {clinic.delayMinutes > 0 && (
+                          <span className="pill pr">Delayed +{clinic.delayMinutes}m</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rating">
+                      {clinic.ratingCount === 0 ? (
+                        <span style={{ color: 'var(--green-dark)', fontWeight: 600 }}>New</span>
+                      ) : (
+                        `${clinic.rating} ⭐`
                       )}
                     </div>
                   </div>
-                  <div className="rating">{clinic.rating} ⭐</div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 0', fontSize: '14px' }}>
               No clinics found matching your criteria.
