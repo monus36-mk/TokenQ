@@ -133,6 +133,34 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     }
   };
 
+  const handleDeleteClinic = async (clinicId, clinicName) => {
+    if (!window.confirm(`Are you sure you want to remove the clinic "${clinicName}"? This will delete the clinic profile and all its associated bookings.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/clinics?id=${clinicId}`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert('Clinic removed successfully!');
+        
+        // If the deleted clinic was selected, reset selection
+        if (selectedClinicId === clinicId) {
+          const remaining = clinics.filter(c => c._id !== clinicId);
+          setSelectedClinicId(remaining[0]?._id || '');
+        }
+
+        onRefresh();
+      } else {
+        alert('Failed to remove clinic: ' + json.error);
+      }
+    } catch (err) {
+      alert('Error removing clinic: ' + err.message);
+    }
+  };
+
   const clinic = clinics.find(c => c._id === selectedClinicId) || clinics[0] || {};
   const clinicBookings = bookings.filter(b => b.clinicId === selectedClinicId);
 
@@ -818,6 +846,65 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 {isSubmitting ? 'Creating Clinic...' : 'Register Clinic ✓'}
               </button>
             </form>
+          )}
+
+          {/* REGISTERED CLINICS LIST */}
+          {activeTab === 'add-clinic' && !isClinicAdmin && (
+            <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '14px' }}>
+                Registered Clinics ({clinics.length})
+              </div>
+              {clinics.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px' }}>
+                  No clinics registered yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {clinics.map((c) => (
+                    <div 
+                      key={c._id} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        background: 'var(--surface2)', 
+                        padding: '12px 16px', 
+                        borderRadius: 'var(--radius)', 
+                        border: '1.5px solid var(--border2)' 
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '24px' }}>{c.icon || '🏥'}</span>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                            {c.name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+                            🔑 {c.adminEmail} · 🎓 {c.specialty}
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteClinic(c._id, c.name)}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#EF4444',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        🗑️ Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
         </div>

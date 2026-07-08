@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
+import Booking from '@/models/Booking';
 import { getMockClinics } from '@/lib/mockData';
 
 export async function GET() {
@@ -104,6 +105,31 @@ export async function PUT(request) {
     return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Error updating clinic review:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    await dbConnect();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Missing clinic ID' }, { status: 400 });
+    }
+
+    const deletedClinic = await Clinic.findByIdAndDelete(id);
+    if (!deletedClinic) {
+      return NextResponse.json({ success: false, error: 'Clinic not found' }, { status: 404 });
+    }
+
+    // Clean up all bookings associated with this clinic
+    await Booking.deleteMany({ clinicId: id });
+
+    return NextResponse.json({ success: true, message: 'Clinic and associated bookings deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting clinic:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
