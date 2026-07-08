@@ -481,8 +481,8 @@ export default function AuthScreens({ onLoginSuccess }) {
 
             {isOtpFallback && (
               <div style={{ color: '#92400E', background: '#FEF3C7', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', border: '1px solid #FCD34D', textAlign: 'center' }}>
-                ⚠️ SMTP Email verification failed (bad credentials or network issue).<br/>
-                For testing, use code: <strong style={{ fontSize: '16px', color: 'var(--green-dark)' }}>{sentOtp}</strong>
+                ⚠️ Demo / Testing Mode.<br/>
+                Use verification code: <strong style={{ fontSize: '16px', color: 'var(--green-dark)' }}>{sentOtp}</strong>
               </div>
             )}
 

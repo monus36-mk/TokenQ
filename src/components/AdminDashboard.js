@@ -525,12 +525,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       cursor: 'pointer'
                     }}
                   >
-                    <option value="All">All Doctors ({clinicBookings.length})</option>
+                    <option value="All">All Doctors ({clinicBookings.length} tokens)</option>
                     {clinicDoctors.map(d => {
                       const docBookings = clinicBookings.filter(b => b.doctorName === d.name);
                       return (
                         <option key={d._id || d.name} value={d.name}>
-                          {d.name} ({d.session} - {docBookings.length})
+                          {d.name} ({d.session} - {docBookings.length} tokens)
                         </option>
                       );
                     })}
