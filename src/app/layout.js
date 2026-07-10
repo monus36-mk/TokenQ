@@ -31,7 +31,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${dmSans.variable} ${dmMono.variable}`}>
       <head>
         <meta name="theme-color" content="#059669" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/image copy.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
