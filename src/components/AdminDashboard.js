@@ -162,7 +162,14 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   };
 
   const clinic = clinics.find(c => c._id === selectedClinicId) || clinics[0] || {};
-  const clinicBookings = bookings.filter(b => b.clinicId === selectedClinicId);
+  const clinicBookings = bookings.filter(b => {
+    if (b.clinicId !== selectedClinicId) return false;
+    const d = new Date(b.createdAt);
+    const today = new Date();
+    return d.getDate() === today.getDate() &&
+           d.getMonth() === today.getMonth() &&
+           d.getFullYear() === today.getFullYear();
+  });
 
   const clinicDoctors = clinic.doctors && clinic.doctors.length > 0
     ? clinic.doctors

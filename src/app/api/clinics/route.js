@@ -7,8 +7,30 @@ import { getMockClinics } from '@/lib/mockData';
 export async function GET() {
   try {
     await dbConnect();
-    const clinics = await Clinic.find({});
-    return NextResponse.json({ success: true, data: clinics, source: 'database' });
+    const clinics = await Clinic.find({}).lean();
+    
+    // Get today's bookings to calculate bookedCount dynamically
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todaysBookings = await Booking.find({
+      createdAt: { $gte: startOfDay, $lte: endOfDay }
+    }).lean();
+
+    const bookingsPerClinic = todaysBookings.reduce((acc, b) => {
+      const cid = b.clinicId.toString();
+      acc[cid] = (acc[cid] || 0) + 1;
+      return acc;
+    }, {});
+
+    const updatedClinics = clinics.map(c => ({
+      ...c,
+      bookedCount: bookingsPerClinic[c._id.toString()] || 0
+    }));
+
+    return NextResponse.json({ success: true, data: updatedClinics, source: 'database' });
   } catch (error) {
     console.warn('MongoDB connection failed. Returning empty list. Error:', error.message);
     return NextResponse.json({ success: true, data: [], source: 'empty-fallback' });
