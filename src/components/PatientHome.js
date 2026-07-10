@@ -165,7 +165,10 @@ export default function PatientHome({
                       {clinic.ratingCount === 0 ? (
                         <span style={{ color: 'var(--green-dark)', fontWeight: 600 }}>New</span>
                       ) : (
-                        `${clinic.rating} ⭐`
+                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                          <span>{clinic.rating} ⭐</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '2px' }}>({clinic.ratingCount} reviews)</span>
+                        </span>
                       )}
                     </div>
                   </div>

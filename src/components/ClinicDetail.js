@@ -13,11 +13,15 @@ const isClinicOpen = (clinic) => {
   return true;
 };
 
-export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded }) {
+export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0 }) {
   const booked = clinic.bookedCount || 0;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // Dynamic wait time based on actual waiting queue length
+  const dynamicWaitTime = waitingCount > 0 ? `~${(waitingCount * 10) + (clinic.delayMinutes || 0)}m` : 'Ready / No wait';
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
@@ -53,6 +57,9 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
     }
   };
 
+  const reviews = clinic.reviews || [];
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '20px', overflowY: 'auto', maxHeight: '100vh' }}>
       
@@ -76,7 +83,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                   New · No reviews yet
                 </span>
               ) : (
-                <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.9)', fontSize: '11px' }}>
+                <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.9)', fontSize: '11px', cursor: 'pointer' }} onClick={() => document.getElementById('reviews-section').scrollIntoView({ behavior: 'smooth' })}>
                   {clinic.rating} ⭐ · {clinic.ratingCount} reviews
                 </span>
               )}
@@ -90,7 +97,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           </div>
           <div className="stat-box">
             <div className="stat-num" style={{ color: '#FBBF24' }}>
-              {clinic.isUnavailable ? '-' : (clinic.delayMinutes > 0 ? `~${45 + clinic.delayMinutes}m` : clinic.avgWaitTime)}
+              {clinic.isUnavailable ? '-' : dynamicWaitTime}
             </div>
             <div className="stat-lbl">Est. wait</div>
           </div>
@@ -177,7 +184,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
             <div className="sec-label" style={{ marginTop: 0 }}>Live Queue Status</div>
             <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: '1.6' }}>
               <div>• Total patient bookings today: <strong>{booked}</strong></div>
-              <div style={{ marginTop: '4px' }}>• Average wait time: <strong>{clinic.avgWaitTime}</strong></div>
+              <div style={{ marginTop: '4px' }}>• Average wait time: <strong>{dynamicWaitTime}</strong></div>
               {clinic.delayMinutes > 0 && (
                 <div style={{ color: 'var(--red)', fontWeight: 500, marginTop: '8px' }}>
                   ⚠️ Doctor delayed by {clinic.delayMinutes} mins. Wait times adjusted.
@@ -186,42 +193,18 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div className="sec-label" style={{ margin: '0 0 4px' }}>Patient Reviews ({clinic.reviews?.length || 0})</div>
-            
-            {clinic.reviews && clinic.reviews.length > 0 ? (
-              clinic.reviews.map((rev, rIdx) => (
-                <div key={rIdx} className="card" style={{ cursor: 'default', margin: 0, padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{rev.userName}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
-                      {new Date(rev.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#F59E0B', margin: '3px 0' }}>
-                    {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{rev.comment}</div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '12px', color: 'var(--text3)', fontSize: '13px', textAlign: 'center', background: 'var(--surface2)', borderRadius: '8px' }}>
-                No reviews yet. Be the first to share your experience!
-              </div>
-            )}
-
-            {/* Write a Review Box */}
-            <div className="card" style={{ cursor: 'default', margin: '10px 0 0', padding: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>Write a Review</div>
+          <div id="reviews-section" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Write a Review Box at the Top */}
+            <div className="card" style={{ cursor: 'default', margin: 0, padding: '16px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '12px' }}>Write a Review</div>
               <form onSubmit={handleSubmitReview}>
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text2)', display: 'block', marginBottom: '4px' }}>Rating:</label>
+                <div style={{ marginBottom: '12px' }}>
                   <div style={{ display: 'flex', gap: '5px' }}>
                     {[1, 2, 3, 4, 5].map(star => (
                       <span 
                         key={star} 
                         onClick={() => setRating(star)} 
-                        style={{ cursor: 'pointer', fontSize: '22px', color: star <= rating ? '#F59E0B' : '#D1D5DB', transition: 'color 0.15s' }}
+                        style={{ cursor: 'pointer', fontSize: '26px', color: star <= rating ? '#F59E0B' : '#D1D5DB', transition: 'color 0.15s', lineHeight: '1' }}
                       >
                         ★
                       </span>
@@ -229,7 +212,6 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                   </div>
                 </div>
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text2)', display: 'block', marginBottom: '4px' }}>Comment:</label>
                   <textarea 
                     placeholder="Share your clinic visit experience..." 
                     value={comment}
@@ -238,7 +220,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                     style={{
                       width: '100%',
                       minHeight: '60px',
-                      padding: '8px',
+                      padding: '10px',
                       background: 'var(--surface2)',
                       border: '1px solid var(--border)',
                       borderRadius: '6px',
@@ -253,12 +235,56 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                   type="submit" 
                   className="btn-p" 
                   disabled={submitting} 
-                  style={{ padding: '6px 12px', fontSize: '12px', width: 'auto', margin: 0 }}
+                  style={{ padding: '8px 16px', fontSize: '13px', width: 'auto', margin: 0 }}
                 >
                   {submitting ? 'Submitting...' : 'Submit Review'}
                 </button>
               </form>
             </div>
+
+            <div className="sec-label" style={{ margin: '8px 0 4px' }}>Patient Reviews ({reviews.length})</div>
+            
+            {reviews.length > 0 ? (
+              <>
+                {visibleReviews.map((rev, rIdx) => (
+                  <div key={rIdx} className="card" style={{ cursor: 'default', margin: 0, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{rev.userName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
+                        {new Date(rev.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#F59E0B', margin: '4px 0' }}>
+                      {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{rev.comment}</div>
+                  </div>
+                ))}
+                {!showAllReviews && reviews.length > 2 && (
+                  <button 
+                    onClick={() => setShowAllReviews(true)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text)',
+                      padding: '10px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      marginTop: '4px'
+                    }}
+                  >
+                    Show more reviews ({reviews.length - 2})
+                  </button>
+                )}
+              </>
+            ) : (
+              <div style={{ padding: '16px', color: 'var(--text3)', fontSize: '13px', textAlign: 'center', background: 'var(--surface2)', borderRadius: '8px' }}>
+                No reviews yet. Be the first to share your experience!
+              </div>
+            )}
+
           </div>
         </div>
       </div>

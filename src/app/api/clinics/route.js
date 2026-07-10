@@ -25,10 +25,26 @@ export async function GET() {
       return acc;
     }, {});
 
-    const updatedClinics = clinics.map(c => ({
-      ...c,
-      bookedCount: bookingsPerClinic[c._id.toString()] || 0
-    }));
+    const waitingPerClinic = todaysBookings.reduce((acc, b) => {
+      if (b.status === 'waiting' || b.status === 'serving') {
+        const cid = b.clinicId.toString();
+        acc[cid] = (acc[cid] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    const updatedClinics = clinics.map(c => {
+      const wCount = waitingPerClinic[c._id.toString()] || 0;
+      const docDelay = (c.doctors && c.doctors[0]?.delayMinutes) || c.delayMinutes || 0;
+      const totalWaitMins = (wCount * 10) + docDelay;
+      const dynamicWait = wCount > 0 ? `~${totalWaitMins}m` : 'Ready / No wait';
+
+      return {
+        ...c,
+        bookedCount: bookingsPerClinic[c._id.toString()] || 0,
+        avgWaitTime: dynamicWait
+      };
+    });
 
     return NextResponse.json({ success: true, data: updatedClinics, source: 'database' });
   } catch (error) {

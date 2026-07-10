@@ -230,6 +230,7 @@ export default function Home() {
               {patientScreen === 'detail' && selectedClinic && (
                 <ClinicDetail 
                   clinic={selectedClinic}
+                  waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
                   onBack={handleBackToHome}
                   onStartBooking={handleStartBooking}
                   currentUser={currentUser}
@@ -298,6 +299,9 @@ export default function Home() {
                         <div className="scrollable">
                           <div className="pad">
                             <div className="sec-label">Live queue tracker</div>
+                            <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '12px' }}>
+                              • Total patient bookings today: <strong>{clinic.bookedCount || 0}</strong>
+                            </div>
                             <div className="qtracker">
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '7px' }}>
                                 <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Now serving</span>
