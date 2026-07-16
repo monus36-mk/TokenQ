@@ -84,6 +84,37 @@ export async function POST(request) {
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 
+      // Edit a Doctor dynamically in the clinic
+      if (action === 'editDoctor') {
+        const { originalName, doctorName, specialty, timings, session, qualification, experience } = body;
+        const clinic = await Clinic.findById(clinicId);
+        if (!clinic) {
+          return NextResponse.json({ success: false, error: 'Clinic not found' }, { status: 404 });
+        }
+ 
+        const doc = clinic.doctors.find(d => d.name === originalName && d.session === session);
+        if (!doc) {
+          return NextResponse.json({ success: false, error: 'Doctor not found' }, { status: 404 });
+        }
+ 
+        doc.name = doctorName;
+        doc.specialty = specialty;
+        doc.timings = timings;
+        doc.qualification = qualification;
+        doc.experience = experience;
+ 
+        await clinic.save();
+ 
+        if (originalName !== doctorName) {
+          await Booking.updateMany(
+            { clinicId, doctorName: originalName },
+            { doctorName: doctorName }
+          );
+        }
+ 
+        return NextResponse.json({ success: true, data: clinic, source: 'database' });
+      }
+
       // Doctor-level: update delay minutes
       if (action === 'updateDelay') {
         const clinic = await Clinic.findById(clinicId);

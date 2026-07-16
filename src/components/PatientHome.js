@@ -29,9 +29,21 @@ export default function PatientHome({
   const filteredClinics = clinics.filter(clinic => {
     const matchesCategory = selectedCategory === 'All' || clinic.specialty === selectedCategory;
     const matchesSearch = clinic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          clinic.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (clinic.doctorName && clinic.doctorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                           clinic.specialty.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
+  });
+
+  const sortedClinics = [...filteredClinics].sort((a, b) => {
+    const aOpen = isClinicOpen(a);
+    const bOpen = isClinicOpen(b);
+    if (aOpen && !bOpen) return -1;
+    if (!aOpen && bOpen) return 1;
+
+    const ratingDiff = (b.rating || 0) - (a.rating || 0);
+    if (ratingDiff !== 0) return ratingDiff;
+
+    return (b.bookedCount || 0) - (a.bookedCount || 0);
   });
 
   const categories = ['All', 'General', 'Dental', 'Paediatric'];
@@ -153,9 +165,9 @@ export default function PatientHome({
             Clinics near you
           </div>
 
-          {filteredClinics.length > 0 ? (
+          {sortedClinics.length > 0 ? (
             <div className="clinics-grid">
-              {filteredClinics.map(clinic => (
+              {sortedClinics.map(clinic => (
                 <div key={clinic._id} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
                   <div className="card-row">
                     <div className="card-icon" style={{ background: clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE' }}>

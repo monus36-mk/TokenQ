@@ -46,6 +46,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   ]);
   const [newDoc, setNewDoc] = useState({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
   const [docError, setDocError] = useState('');
+  const [editingDoc, setEditingDoc] = useState(null);
 
   // Reset doctor filter when selected clinic changes
   useEffect(() => {
@@ -264,6 +265,41 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
       }
     } catch (err) {
       setDocError('Error adding doctor: ' + err.message);
+    }
+  };
+
+  const handleEditDoctorSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingDoc.name || !editingDoc.timings) {
+      alert('Please fill out Name and Timings');
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'editDoctor',
+          clinicId: clinic._id,
+          originalName: editingDoc.originalName,
+          session: editingDoc.session,
+          doctorName: editingDoc.name,
+          specialty: editingDoc.specialty,
+          timings: editingDoc.timings,
+          qualification: editingDoc.qualification,
+          experience: editingDoc.experience
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert('Doctor details updated successfully!');
+        setEditingDoc(null);
+        onRefresh();
+      } else {
+        alert('Failed to update doctor: ' + json.error);
+      }
+    } catch (err) {
+      alert('Error updating doctor: ' + err.message);
     }
   };
 
@@ -881,64 +917,170 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
               <div className="sec-label">👨‍⚕️ Manage Doctors ({clinicDoctors.length})</div>
               {clinicDoctors.map((doc, idx) => {
                 const docBookings = clinicBookings.filter(b => b.doctorName === doc.name);
+                const isEditing = editingDoc && editingDoc.originalName === doc.name && editingDoc.session === doc.session;
+
                 return (
                   <div key={idx} className="ctrl-card" style={{ marginBottom: '14px', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border2)', paddingBottom: '8px', marginBottom: '10px' }}>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>
-                          🎓 {doc.specialty}
-                          {doc.qualification && ` · ${doc.qualification}`}
-                          {doc.experience && ` (${doc.experience})`}
-                          {` · ⏰ ${doc.timings} (${doc.session})`}
+                    {isEditing ? (
+                      <form onSubmit={handleEditDoctorSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '5px' }}>
+                        <div className="fg" style={{ margin: 0 }}>
+                          <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Doctor Name</label>
+                          <input 
+                            type="text" 
+                            className="fi-input" 
+                            value={editingDoc.name}
+                            onChange={(e) => setEditingDoc({ ...editingDoc, name: e.target.value })}
+                            required 
+                          />
                         </div>
-                      </div>
-                      <div className={`pill ${doc.isUnavailable ? 'pr' : 'pg'}`} style={{ fontSize: '10px' }}>
-                        {doc.isUnavailable ? 'Offline' : 'Active'}
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      {/* Delay modifier button */}
-                      <button 
-                        className="act-btn" 
-                        onClick={() => handleAdminAction({ action: 'updateDelay', doctorName: doc.name, delay: doc.delayMinutes > 0 ? 0 : 30 })}
-                        style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
-                      >
-                        <div className="act-icon" style={{ background: 'var(--blue-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>⏱️</div>
-                        <span>{doc.delayMinutes > 0 ? `Reset Delay (${doc.delayMinutes}m)` : 'Delay +30 min'}</span>
-                      </button>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div className="fg" style={{ margin: 0 }}>
+                            <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Specialty</label>
+                            <select 
+                              className="fi-input" 
+                              value={editingDoc.specialty}
+                              onChange={(e) => setEditingDoc({ ...editingDoc, specialty: e.target.value })}
+                            >
+                              <option value="General">General</option>
+                              <option value="Dental">Dental</option>
+                              <option value="Paediatric">Paediatric</option>
+                              <option value="Orthopaedic">Orthopaedic</option>
+                              <option value="Gynaecology">Gynaecology</option>
+                              <option value="Dermatology">Dermatology</option>
+                              <option value="Ophthalmology">Ophthalmology</option>
+                            </select>
+                          </div>
+                          
+                          <div className="fg" style={{ margin: 0 }}>
+                            <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Timings</label>
+                            <input 
+                              type="text" 
+                              className="fi-input" 
+                              value={editingDoc.timings}
+                              onChange={(e) => setEditingDoc({ ...editingDoc, timings: e.target.value })}
+                              required 
+                            />
+                          </div>
+                        </div>
 
-                      {/* Pause modifier button */}
-                      <button 
-                        className="act-btn" 
-                        onClick={() => handleAdminAction({ action: 'togglePaused', doctorName: doc.name, isPaused: !doc.isPaused })}
-                        style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
-                      >
-                        <div className="act-icon" style={{ background: 'var(--amber-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>⏸️</div>
-                        <span>{doc.isPaused ? 'Resume Bookings' : 'Pause Bookings'}</span>
-                      </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div className="fg" style={{ margin: 0 }}>
+                            <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Qualification</label>
+                            <input 
+                              type="text" 
+                              className="fi-input" 
+                              placeholder="e.g. MBBS, MD" 
+                              value={editingDoc.qualification}
+                              onChange={(e) => setEditingDoc({ ...editingDoc, qualification: e.target.value })}
+                            />
+                          </div>
+                          <div className="fg" style={{ margin: 0 }}>
+                            <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Experience</label>
+                            <input 
+                              type="text" 
+                              className="fi-input" 
+                              placeholder="e.g. 10+ Yrs Exp" 
+                              value={editingDoc.experience}
+                              onChange={(e) => setEditingDoc({ ...editingDoc, experience: e.target.value })}
+                            />
+                          </div>
+                        </div>
 
-                      {/* Availability status modifier button */}
-                      <button 
-                        className="act-btn" 
-                        onClick={() => handleAdminAction({ action: 'toggleUnavailable', doctorName: doc.name, isUnavailable: !doc.isUnavailable })}
-                        style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
-                      >
-                        <div className="act-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>🔴</div>
-                        <span>{doc.isUnavailable ? 'Mark Available' : 'Mark Unavailable'}</span>
-                      </button>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <button type="submit" className="btn-p" style={{ padding: '8px 16px', fontSize: '12px', width: 'auto', margin: 0 }}>
+                            Save ✓
+                          </button>
+                          <button type="button" className="btn-s" onClick={() => setEditingDoc(null)} style={{ padding: '8px 16px', fontSize: '12px', width: 'auto', margin: 0 }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border2)', paddingBottom: '8px', marginBottom: '10px' }}>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text2)' }}>
+                              🎓 {doc.specialty}
+                              {doc.qualification && ` · ${doc.qualification}`}
+                              {doc.experience && ` (${doc.experience})`}
+                              {` · ⏰ ${doc.timings} (${doc.session})`}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button 
+                              onClick={() => setEditingDoc({
+                                originalName: doc.name,
+                                session: doc.session,
+                                name: doc.name,
+                                specialty: doc.specialty,
+                                timings: doc.timings,
+                                qualification: doc.qualification || '',
+                                experience: doc.experience || ''
+                              })}
+                              style={{
+                                background: 'transparent',
+                                border: '1.5px solid var(--border)',
+                                color: 'var(--text2)',
+                                borderRadius: '4px',
+                                padding: '3px 8px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              ✏️ Edit
+                            </button>
+                            <div className={`pill ${doc.isUnavailable ? 'pr' : 'pg'}`} style={{ fontSize: '10px' }}>
+                              {doc.isUnavailable ? 'Offline' : 'Active'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          {/* Delay modifier button */}
+                          <button 
+                            className="act-btn" 
+                            onClick={() => handleAdminAction({ action: 'updateDelay', doctorName: doc.name, delay: doc.delayMinutes > 0 ? 0 : 30 })}
+                            style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
+                          >
+                            <div className="act-icon" style={{ background: 'var(--blue-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>⏱️</div>
+                            <span>{doc.delayMinutes > 0 ? `Reset Delay (${doc.delayMinutes}m)` : 'Delay +30 min'}</span>
+                          </button>
 
-                      {/* Cancel Slots / Clear queue button */}
-                      <button 
-                        className="act-btn danger" 
-                        onClick={() => confirm(`Cancel remaining slots for ${doc.name}?`) && alert('Slots cancelled. Patient SMS notifications dispatched.')}
-                        style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
-                      >
-                        <div className="act-icon" style={{ background: 'var(--red-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>❌</div>
-                        <span>Cancel Slots</span>
-                      </button>
-                    </div>
+                          {/* Pause modifier button */}
+                          <button 
+                            className="act-btn" 
+                            onClick={() => handleAdminAction({ action: 'togglePaused', doctorName: doc.name, isPaused: !doc.isPaused })}
+                            style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
+                          >
+                            <div className="act-icon" style={{ background: 'var(--amber-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>⏸️</div>
+                            <span>{doc.isPaused ? 'Resume Bookings' : 'Pause Bookings'}</span>
+                          </button>
+
+                          {/* Availability status modifier button */}
+                          <button 
+                            className="act-btn" 
+                            onClick={() => handleAdminAction({ action: 'toggleUnavailable', doctorName: doc.name, isUnavailable: !doc.isUnavailable })}
+                            style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
+                          >
+                            <div className="act-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>🔴</div>
+                            <span>{doc.isUnavailable ? 'Mark Available' : 'Mark Unavailable'}</span>
+                          </button>
+
+                          {/* Cancel Slots / Clear queue button */}
+                          <button 
+                            className="act-btn danger" 
+                            onClick={() => confirm(`Cancel remaining slots for ${doc.name}?`) && alert('Slots cancelled. Patient SMS notifications dispatched.')}
+                            style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
+                          >
+                            <div className="act-icon" style={{ background: 'var(--red-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>❌</div>
+                            <span>Cancel Slots</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
