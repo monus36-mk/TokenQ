@@ -76,7 +76,13 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           <div className="hero-icon">{clinic.icon || '🏥'}</div>
           <div>
             <div className="hero-name">{clinic.name}</div>
-            <div className="hero-sub">{clinic.doctorName} · {clinic.specialty} Specialist</div>
+            {(() => {
+              const uniqueDocSpecs = Array.from(new Set((clinic.doctors || []).map(d => d.specialty).filter(Boolean)));
+              const displaySpecialties = uniqueDocSpecs.length > 0 
+                ? uniqueDocSpecs.join(' · ') 
+                : `${clinic.specialty} Specialist`;
+              return <div className="hero-sub">{displaySpecialties}</div>;
+            })()}
             <div style={{ marginTop: '6px' }}>
               {clinic.ratingCount === 0 ? (
                 <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.9)', fontSize: '11px' }}>

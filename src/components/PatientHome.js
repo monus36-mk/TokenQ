@@ -276,7 +276,17 @@ export default function PatientHome({
                     </div>
                     <div style={{ flex: 1 }}>
                       <div className="card-name">{clinic.name}</div>
-                      <div className="card-meta">📍 {clinic.address} · {clinic.specialty}</div>
+                      {(() => {
+                        const uniqueDocSpecs = Array.from(new Set((clinic.doctors || []).map(d => d.specialty).filter(Boolean)));
+                        const displaySpecialties = uniqueDocSpecs.length > 0 
+                          ? uniqueDocSpecs.join(', ') 
+                          : clinic.specialty;
+                        return (
+                          <div className="card-meta">
+                            📍 {clinic.address} · <span style={{ color: 'var(--green-dark)', fontWeight: 500 }}>{displaySpecialties}</span>
+                          </div>
+                        );
+                      })()}
                       <div className="card-pills" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         <span className={`pill ${!isClinicOpen(clinic) ? 'pr' : 'pg'}`}>
                           {!isClinicOpen(clinic) ? 'Closed' : 'Open'}
