@@ -117,9 +117,9 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           <div className="card" style={{ cursor: 'default', margin: 0, padding: '20px' }}>
             <div className="sec-label" style={{ marginTop: 0 }}>📍 Clinic Info</div>
             <div className="ilist">
-              <div className="irow">
-                <span className="ilabel">📍 Address</span>
-                <span className="ival">{clinic.address}</span>
+              <div className="irow" style={{ alignItems: 'flex-start' }}>
+                <span className="ilabel" style={{ flexShrink: 0, width: '90px' }}>📍 Address</span>
+                <span className="ival" style={{ textAlign: 'right', wordBreak: 'break-word', lineHeight: '1.4' }}>{clinic.address}</span>
               </div>
               <div className="irow">
                 <span className="ilabel">💰 Fee</span>
