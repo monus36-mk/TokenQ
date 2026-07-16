@@ -1329,10 +1329,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .desktop-layout {
@@ -2064,3 +2065,4 @@ body {
   }
 }
 
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

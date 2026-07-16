@@ -290,7 +290,15 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
         <div className="step-bar">
           {[2, 3, 4, 5].map(i => (
             <React.Fragment key={i}>
-              <div className={`sdot ${i < step ? 'done' : i === step ? 'act' : 'idle'}`}>
+              <div 
+                className={`sdot ${i < step ? 'done' : i === step ? 'act' : 'idle'}`}
+                onClick={() => {
+                  if (i < step) {
+                    setStep(i);
+                  }
+                }}
+                style={{ cursor: i < step ? 'pointer' : 'default' }}
+              >
                 {i < step ? '✓' : i - 1}
               </div>
               {i < 5 && <div className={`sline ${i < step ? 'done' : ''}`}></div>}

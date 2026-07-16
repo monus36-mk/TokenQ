@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
 
 // Install Event
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Force update immediately
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -26,14 +27,14 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // Take control of all open pages
   );
 });
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
-  // Bypass caching for API calls to ensure live updates
-  if (event.request.url.includes('/api/')) {
+  // Bypass caching for API calls and Next.js internal files (prevents ChunkLoadError)
+  if (event.request.url.includes('/api/') || event.request.url.includes('/_next/') || event.request.url.includes('webpack')) {
     return;
   }
   

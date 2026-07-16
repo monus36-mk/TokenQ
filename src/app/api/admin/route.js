@@ -3,6 +3,8 @@ import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request) {
   try {
     const body = await request.json();

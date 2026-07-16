@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-export default function AuthScreens({ onLoginSuccess }) {
+export default function AuthScreens({ onLoginSuccess, onClose }) {
   const [stage, setStage] = useState('email'); // 'email', 'password', 'signup', 'otp'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -247,6 +247,14 @@ export default function AuthScreens({ onLoginSuccess }) {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative', background: 'var(--surface)' }}>
       
       {/* Header Brand */}
+      {onClose && (
+        <button 
+          onClick={onClose}
+          style={{ position: 'absolute', top: '20px', left: '20px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '18px', zIndex: 10 }}
+        >
+          ✕
+        </button>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '50px 20px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '10px' }}>🏥</div>
         <div className="app-brand" style={{ color: 'var(--text)', fontSize: '28px' }}>

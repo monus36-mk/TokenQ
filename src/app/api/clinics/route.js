@@ -4,16 +4,24 @@ import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
 import { getMockClinics } from '@/lib/mockData';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await dbConnect();
     const clinics = await Clinic.find({}).lean();
     
-    // Get today's bookings to calculate bookedCount dynamically
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    // Calculate start and end of day in IST (UTC+5:30)
+    const now = new Date();
+    const utcOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + utcOffset);
+    
+    // Set to midnight in IST
+    istTime.setUTCHours(0, 0, 0, 0);
+    
+    // Convert back to real UTC Date bounds for MongoDB query
+    const startOfDay = new Date(istTime.getTime() - utcOffset);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const todaysBookings = await Booking.find({
       createdAt: { $gte: startOfDay, $lte: endOfDay }

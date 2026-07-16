@@ -51,26 +51,44 @@ export default function PatientHome({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 500 }}>
-              Hi, {currentUser?.name?.split(' ')[0] || 'Patient'}!
+              {currentUser ? `Hi, ${currentUser?.name?.split(' ')[0]}!` : 'Welcome!'}
             </span>
-            <button 
-              onClick={() => {
-                localStorage.removeItem('tokenq_user');
-                window.location.reload();
-              }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.18)',
-                color: 'white',
-                border: 'none',
-                padding: '3px 7px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              Logout 🚪
-            </button>
+            {currentUser ? (
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('tokenq_user');
+                  window.location.reload();
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.18)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '3px 7px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                Logout 🚪
+              </button>
+            ) : (
+              <button 
+                onClick={() => onNavigate('auth')}
+                style={{
+                  background: 'white',
+                  color: 'var(--green-dark)',
+                  border: 'none',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  fontWeight: 700
+                }}
+              >
+                Sign In →
+              </button>
+            )}
           </div>
         </div>
         <div className="search-bar">

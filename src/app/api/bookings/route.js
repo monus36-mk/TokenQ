@@ -4,6 +4,8 @@ import Booking from '@/models/Booking';
 import Clinic from '@/models/Clinic';
 import { getMockBookings, getMockBookingsByClinic, createMockBooking } from '@/lib/mockData';
 
+export const dynamic = 'force-dynamic';
+
 // GET bookings. Optional query parameters: phone, clinicId
 export async function GET(request) {
   try {
@@ -75,10 +77,17 @@ export async function POST(request) {
       const chosenDoctor = doctorName || clinic.doctorName || 'Doctor';
 
       // Check if this patient already has an active booking today at this clinic
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
+      // Calculate start and end of day in IST (UTC+5:30)
+      const now = new Date();
+      const utcOffset = 5.5 * 60 * 60 * 1000;
+      const istTime = new Date(now.getTime() + utcOffset);
+      
+      // Set to midnight in IST
+      istTime.setUTCHours(0, 0, 0, 0);
+      
+      // Convert back to real UTC Date bounds for MongoDB query
+      const startOfDay = new Date(istTime.getTime() - utcOffset);
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
 
       const existingActiveBooking = await Booking.findOne({
         clinicId,

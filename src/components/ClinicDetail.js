@@ -13,7 +13,7 @@ const isClinicOpen = (clinic) => {
   return true;
 };
 
-export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0 }) {
+export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0, onRequireAuth }) {
   const booked = clinic.bookedCount || 0;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -160,13 +160,20 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                   </div>
                   <button 
                     className="btn-p" 
-                    onClick={() => onStartBooking(doc)}
+                    onClick={() => {
+                      if (!currentUser) {
+                        if (onRequireAuth) onRequireAuth(doc);
+                      } else {
+                        onStartBooking(doc);
+                      }
+                    }}
                     disabled={!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused}
                     style={{ 
                       opacity: (!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused) ? 0.5 : 1, 
-                      padding: '8px 14px', 
-                      fontSize: '12px', 
-                      width: 'auto', 
+                      padding: '10px 28px', 
+                      fontSize: '14px', 
+                      minWidth: '100px',
+                      width: 'auto',
                       marginTop: 0 
                     }}
                   >

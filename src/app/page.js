@@ -24,12 +24,28 @@ export default function Home() {
   const [userPhone, setUserPhone] = useState('');
   const [userName, setUserName] = useState('');
 
+  // Pending routing states for history sync
+  const [pendingClinicId, setPendingClinicId] = useState(null);
+  const [pendingDoctorName, setPendingDoctorName] = useState(null);
+  const [pendingTokenId, setPendingTokenId] = useState(null);
+
   // Check persistent session on mount
   useEffect(() => {
+    // Force unregister any old Service Workers causing ChunkLoadError
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+          console.log('Unregistered broken service worker');
+        }
+      }).catch(err => console.error('Error unregistering SW:', err));
+    }
+
     const savedUser = localStorage.getItem('tokenq_user');
+    let user = null;
     if (savedUser) {
       try {
-        const user = JSON.parse(savedUser);
+        user = JSON.parse(savedUser);
         setCurrentUser(user);
         setIsLoggedIn(true);
         if (user.role === 'admin' || user.role === 'clinic-admin') {
@@ -43,26 +59,53 @@ export default function Home() {
         console.error('Error parsing saved session:', e);
       }
     }
+
+    // URL Parsing for SPA back button and refresh support
+    const params = new URLSearchParams(window.location.search);
+    const screen = params.get('screen');
+    if (screen) {
+      const protectedScreens = ['book', 'token', 'tokens', 'profile'];
+      if (protectedScreens.includes(screen) && !user) {
+        setPatientScreen('home');
+        window.history.replaceState(null, '', window.location.pathname);
+      } else {
+        setPatientScreen(screen);
+        const clinicId = params.get('clinicId');
+        const doctorName = params.get('doctor');
+        const tokenId = params.get('tokenId');
+        if (clinicId) setPendingClinicId(clinicId);
+        if (doctorName) setPendingDoctorName(doctorName);
+        if (tokenId) setPendingTokenId(tokenId);
+      }
+    }
   }, []);
 
   const fetchData = async () => {
+    console.log('fetchData called');
     try {
       // Fetch clinics
-      const clinicsRes = await fetch('/api/clinics');
+      console.log('Fetching clinics...');
+      const clinicsRes = await fetch('/api/clinics', { cache: 'no-store' });
+      console.log('Clinics response status:', clinicsRes.status);
       const clinicsJson = await clinicsRes.json();
+      console.log('Clinics parsed:', clinicsJson.success);
       if (clinicsJson.success) {
         setClinics(clinicsJson.data);
       }
 
       // Fetch all bookings (so admin can see everything)
-      const bookingsRes = await fetch('/api/bookings');
+      console.log('Fetching bookings...');
+      const bookingsRes = await fetch('/api/bookings', { cache: 'no-store' });
+      console.log('Bookings response status:', bookingsRes.status);
       const bookingsJson = await bookingsRes.json();
+      console.log('Bookings parsed:', bookingsJson.success);
       if (bookingsJson.success) {
         setBookings(bookingsJson.data);
       }
     } catch (e) {
       console.warn('Error fetching data:', e);
     } finally {
+      console.log('Setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -84,6 +127,79 @@ export default function Home() {
       }
     }
   }, [bookings, selectedToken]);
+
+  // History popstate listener for back button support
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const screen = params.get('screen') || 'home';
+      const clinicId = params.get('clinicId');
+      const doctorName = params.get('doctor');
+      const tokenId = params.get('tokenId');
+
+      setPatientScreen(screen);
+      if (clinicId) {
+        setPendingClinicId(clinicId);
+      } else {
+        setSelectedClinic(null);
+        setPendingClinicId(null);
+      }
+      if (doctorName) {
+        setPendingDoctorName(doctorName);
+      } else {
+        setSelectedDoctor(null);
+        setPendingDoctorName(null);
+      }
+      if (tokenId) {
+        setPendingTokenId(tokenId);
+      } else {
+        setSelectedToken(null);
+        setPendingTokenId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Resolve pending entities when clinics load
+  useEffect(() => {
+    if (pendingClinicId && clinics.length > 0) {
+      const clinic = clinics.find(c => c._id === pendingClinicId);
+      if (clinic) {
+        setSelectedClinic(clinic);
+        if (pendingDoctorName) {
+          const doc = clinic.doctors?.find(d => d.name === pendingDoctorName);
+          if (doc) setSelectedDoctor(doc);
+        }
+      }
+    }
+  }, [pendingClinicId, clinics, pendingDoctorName]);
+
+  // Resolve pending tokens when bookings load
+  useEffect(() => {
+    if (pendingTokenId && bookings.length > 0) {
+      const token = bookings.find(b => b._id === pendingTokenId);
+      if (token) {
+        setSelectedToken(token);
+      }
+    }
+  }, [pendingTokenId, bookings]);
+
+  // Helper to push history state to URL search params
+  const pushStateToHistory = (screen, clinicId = null, doctorName = null, tokenId = null) => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams();
+    params.set('screen', screen);
+    if (clinicId) params.set('clinicId', clinicId);
+    if (doctorName) params.set('doctor', doctorName);
+    if (tokenId) params.set('tokenId', tokenId);
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    if (window.location.search !== `?${params.toString()}`) {
+      window.history.pushState(null, '', newUrl);
+    }
+  };
 
   const handleCancelBooking = async () => {
     if (!selectedToken) return;
@@ -139,7 +255,22 @@ export default function Home() {
     setUserPhone(user.phone || '');
     setUserName(user.name);
     localStorage.setItem('tokenq_user', JSON.stringify(user));
-    setPatientScreen('home');
+    
+    if (user.role !== 'admin' && user.role !== 'clinic-admin') {
+      if (selectedClinic && selectedDoctor) {
+        setPatientScreen('book');
+        pushStateToHistory('book', selectedClinic._id, selectedDoctor.name);
+      } else if (selectedClinic) {
+        setPatientScreen('detail');
+        pushStateToHistory('detail', selectedClinic._id);
+      } else {
+        setPatientScreen('home');
+        pushStateToHistory('home');
+      }
+    } else {
+      setPatientScreen('home');
+      pushStateToHistory('home');
+    }
     fetchData();
   };
 
@@ -151,16 +282,35 @@ export default function Home() {
     localStorage.removeItem('tokenq_user');
     setPatientScreen('home'); // Reset screen state
     setViewMode('patient'); // Default back to patient
+    pushStateToHistory('home');
+  };
+
+  const handleCloseAuth = () => {
+    if (selectedClinic) {
+      setPatientScreen('detail');
+      pushStateToHistory('detail', selectedClinic._id);
+    } else {
+      setPatientScreen('home');
+      pushStateToHistory('home');
+    }
+  };
+
+  const handleRequireAuth = (doctor = null) => {
+    if (doctor) setSelectedDoctor(doctor);
+    setPatientScreen('auth');
+    pushStateToHistory('auth', selectedClinic?._id, doctor?.name);
   };
 
   const handleSelectClinic = (clinic) => {
     setSelectedClinic(clinic);
     setPatientScreen('detail');
+    pushStateToHistory('detail', clinic._id);
   };
 
   const handleStartBooking = (doctor) => {
     setSelectedDoctor(doctor);
     setPatientScreen('book');
+    pushStateToHistory('book', selectedClinic?._id, doctor.name);
   };
 
   const handleBookingComplete = (newBooking) => {
@@ -168,20 +318,27 @@ export default function Home() {
     setBookings(prev => [newBooking, ...prev]);
     setSelectedToken(newBooking);
     setPatientScreen('token'); // Go directly to live tracking of the confirmed token
+    pushStateToHistory('token', newBooking.clinicId, newBooking.doctorName, newBooking._id);
     fetchData();
   };
 
   const handleSelectToken = (token) => {
     setSelectedToken(token);
     setPatientScreen('token');
+    pushStateToHistory('token', token.clinicId, token.doctorName, token._id);
   };
 
   const handleNavigate = (screen) => {
     setPatientScreen(screen);
+    pushStateToHistory(screen, selectedClinic?._id);
   };
 
   const handleBackToHome = () => {
     setPatientScreen('home');
+    setSelectedClinic(null);
+    setSelectedDoctor(null);
+    setSelectedToken(null);
+    pushStateToHistory('home');
   };
 
   // Helper star rating mockup
@@ -194,23 +351,16 @@ export default function Home() {
   return (
     <main className="app-container">
       {isLoading ? (
-        <div style={{ display: 'flex', flex: 1, height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', background: 'var(--bg)' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>🏥</div>
-            <div style={{ fontSize: '16px', fontWeight: 600 }}>Loading TokenQ...</div>
+        <div style={{ display: 'flex', width: '100%', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', flexDirection: 'column' }}>
+          <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(5, 150, 105, 0.2)', borderTop: '3px solid var(--green)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '16px' }}></div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--green-dark)', letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Token<span style={{ color: 'var(--green)' }}>Q</span>
           </div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '8px', fontWeight: 500 }}>Smart Clinic Booking</div>
         </div>
       ) : viewMode === 'patient' ? (
         /* ===== PATIENT WORKFLOW ===== */
         <div className="patient-layout-wrap">
-          
-          {!isLoggedIn ? (
-            /* LOGIN / SIGNUP SCREENS */
-            <AuthScreens 
-              onLoginSuccess={handleLoginSuccess}
-            />
-          ) : (
-            /* REGISTERED FLOWS */
             <>
               {/* Screen 1: Home List */}
               {patientScreen === 'home' && (
@@ -233,6 +383,7 @@ export default function Home() {
                   waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
                   onBack={handleBackToHome}
                   onStartBooking={handleStartBooking}
+                  onRequireAuth={handleRequireAuth}
                   currentUser={currentUser}
                   onReviewAdded={(updatedClinic) => {
                     setClinics(prev => prev.map(c => c._id === updatedClinic._id ? updatedClinic : c));
@@ -566,8 +717,16 @@ export default function Home() {
 
                 </div>
               )}
+              {/* Auth Overlay */}
+              {patientScreen === 'auth' && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+                  <AuthScreens 
+                    onLoginSuccess={handleLoginSuccess}
+                    onClose={handleCloseAuth}
+                  />
+                </div>
+              )}
             </>
-          )}
         </div>
       ) : (
         /* ===== ADMIN WORKFLOW ===== */

@@ -562,7 +562,31 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       </div>
                     )}
                   </div>
-                  <button className="btn-done" onClick={() => handleMarkDone(currentServingPatient._id)}>Done ✓</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {currentServingPatient.patientPhone && (
+                      <a 
+                        href={`tel:${currentServingPatient.patientPhone}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          background: 'white',
+                          border: '1.5px solid var(--green-mid)',
+                          textDecoration: 'none',
+                          fontSize: '15px',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                          transition: 'transform 0.1s'
+                        }}
+                        title={`Call ${currentServingPatient.patientName}`}
+                      >
+                        📞
+                      </a>
+                    )}
+                    <button className="btn-done" onClick={() => handleMarkDone(currentServingPatient._id)}>Done ✓</button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', marginBottom: '14px', fontSize: '13px' }}>
@@ -589,7 +613,32 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           {patient.visitType === 'new' ? 'New' : 'BP Follow-up'} · {patient.slot} · {patient.complaints?.join(', ') || 'Consultation'}
                         </div>
                       </div>
-                      <span className={`pill ${styles[indexStyle]}`}>{indexStyle === 0 ? 'Next Up' : labels[indexStyle]}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className={`pill ${styles[indexStyle]}`}>{indexStyle === 0 ? 'Next Up' : labels[indexStyle]}</span>
+                        {patient.patientPhone && (
+                          <a 
+                            href={`tel:${patient.patientPhone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              background: 'var(--green-light)',
+                              color: 'var(--green-dark)',
+                              textDecoration: 'none',
+                              fontSize: '14px',
+                              border: '1px solid var(--green)',
+                              transition: 'transform 0.1s'
+                            }}
+                            title={`Call ${patient.patientName}`}
+                          >
+                            📞
+                          </a>
+                        )}
+                      </div>
                     </div>
                   );
                 })
