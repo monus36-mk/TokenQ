@@ -27,10 +27,23 @@ export default function PatientHome({
 
   // Filter clinics based on category and search query
   const filteredClinics = clinics.filter(clinic => {
-    const matchesCategory = selectedCategory === 'All' || clinic.specialty === selectedCategory;
+    let matchesCategory = selectedCategory === 'All';
+    if (!matchesCategory) {
+      const catLower = selectedCategory.toLowerCase();
+      const clinicSpecMatches = clinic.specialty && clinic.specialty.toLowerCase().includes(catLower);
+      const doctorSpecMatches = clinic.doctors && clinic.doctors.some(doc => 
+        doc.specialty && doc.specialty.toLowerCase().includes(catLower)
+      );
+      matchesCategory = clinicSpecMatches || doctorSpecMatches;
+    }
+
     const matchesSearch = clinic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (clinic.doctorName && clinic.doctorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                          clinic.specialty.toLowerCase().includes(searchQuery.toLowerCase());
+                          (clinic.specialty && clinic.specialty.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (clinic.doctors && clinic.doctors.some(doc => 
+                            doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            doc.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+                          ));
     return matchesCategory && matchesSearch;
   });
 
