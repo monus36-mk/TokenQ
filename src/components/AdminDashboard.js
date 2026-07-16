@@ -3,9 +3,18 @@ import React, { useState, useEffect } from 'react';
 export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout, currentUser }) {
   const isClinicAdmin = currentUser?.role === 'clinic-admin';
   const defaultClinicId = isClinicAdmin ? (currentUser?.clinicId || '') : (clinics[0]?._id || '');
+
+  const getWhatsAppLink = (phone, patientName, tokenNumber) => {
+    if (!phone) return '#';
+    const cleanPhone = phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const message = `Hello ${patientName}, this is ${clinic.name || 'the clinic'}. Your token (${tokenNumber}) is coming up next in the queue. Please reach the consulting room. Thank you!`;
+    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+  };
   
   const [selectedClinicId, setSelectedClinicId] = useState(defaultClinicId);
   const [activeTab, setActiveTab] = useState(isClinicAdmin ? 'queue' : 'add-clinic');
+  const [viewingPatient, setViewingPatient] = useState(null);
 
   // Update selectedClinicId if default clinic loaded dynamically
   useEffect(() => {
@@ -547,7 +556,10 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
               <div className="sec-label">Currently serving</div>
               {currentServingPatient ? (
-                <div style={{ background: 'var(--green-light)', borderRadius: 'var(--radius)', padding: '13px 15px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div 
+                  onClick={() => setViewingPatient(currentServingPatient)}
+                  style={{ background: 'var(--green-light)', borderRadius: 'var(--radius)', padding: '13px 15px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                >
                   <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '20px', fontWeight: 500, color: 'var(--green-dark)', background: 'white', borderRadius: '50%', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {currentServingPatient.tokenNumber}
                   </div>
@@ -564,28 +576,62 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {currentServingPatient.patientPhone && (
-                      <a 
-                        href={`tel:${currentServingPatient.patientPhone}`}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '50%',
-                          background: 'white',
-                          border: '1.5px solid var(--green-mid)',
-                          textDecoration: 'none',
-                          fontSize: '15px',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                          transition: 'transform 0.1s'
-                        }}
-                        title={`Call ${currentServingPatient.patientName}`}
-                      >
-                        📞
-                      </a>
+                      <>
+                        <a 
+                          href={`tel:${currentServingPatient.patientPhone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: 'white',
+                            border: '1.5px solid var(--green-mid)',
+                            textDecoration: 'none',
+                            fontSize: '15px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                            transition: 'transform 0.1s'
+                          }}
+                          title={`Call ${currentServingPatient.patientName}`}
+                        >
+                          📞
+                        </a>
+                        <a 
+                          href={getWhatsAppLink(currentServingPatient.patientPhone, currentServingPatient.patientName, currentServingPatient.tokenNumber)}
+                          onClick={(e) => e.stopPropagation()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: '#E8F5E9',
+                            border: '1.5px solid #2E7D32',
+                            textDecoration: 'none',
+                            fontSize: '15px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                            transition: 'transform 0.1s'
+                          }}
+                          title={`WhatsApp ${currentServingPatient.patientName}`}
+                        >
+                          💬
+                        </a>
+                      </>
                     )}
-                    <button className="btn-done" onClick={() => handleMarkDone(currentServingPatient._id)}>Done ✓</button>
+                    <button 
+                      className="btn-done" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkDone(currentServingPatient._id);
+                      }}
+                    >
+                      Done ✓
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -603,7 +649,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   const indexStyle = index === 0 ? 0 : index < 3 ? 1 : 2; 
 
                   return (
-                    <div key={patient._id} className="qi" style={{ cursor: 'pointer' }} onClick={() => handleAdminAction({ action: 'updateBookingStatus', bookingId: patient._id, status: 'serving' })}>
+                    <div key={patient._id} className="qi" style={{ cursor: 'pointer' }} onClick={() => setViewingPatient(patient)}>
                       <div className="tkbadge" style={{ background: indexStyle === 0 ? 'var(--amber-light)' : indexStyle === 1 ? 'var(--blue-light)' : 'var(--surface2)', color: indexStyle === 0 ? 'var(--amber)' : indexStyle === 1 ? 'var(--blue)' : 'var(--text2)' }}>
                         {patient.tokenNumber}
                       </div>
@@ -613,30 +659,68 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           {patient.visitType === 'new' ? 'New' : 'BP Follow-up'} · {patient.slot} · {patient.complaints?.join(', ') || 'Consultation'}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`pill ${styles[indexStyle]}`}>{indexStyle === 0 ? 'Next Up' : labels[indexStyle]}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span 
+                          className={`pill ${styles[indexStyle]}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdminAction({ action: 'updateBookingStatus', bookingId: patient._id, status: 'serving' });
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            transition: 'transform 0.1s'
+                          }}
+                          title="Click to start serving this patient"
+                        >
+                          {indexStyle === 0 ? 'Next Up 🚀' : labels[indexStyle]}
+                        </span>
                         {patient.patientPhone && (
-                          <a 
-                            href={`tel:${patient.patientPhone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              background: 'var(--green-light)',
-                              color: 'var(--green-dark)',
-                              textDecoration: 'none',
-                              fontSize: '14px',
-                              border: '1px solid var(--green)',
-                              transition: 'transform 0.1s'
-                            }}
-                            title={`Call ${patient.patientName}`}
-                          >
-                            📞
-                          </a>
+                          <>
+                            <a 
+                              href={`tel:${patient.patientPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '50%',
+                                background: 'var(--green-light)',
+                                color: 'var(--green-dark)',
+                                textDecoration: 'none',
+                                fontSize: '13px',
+                                border: '1px solid var(--green)',
+                                transition: 'transform 0.1s'
+                              }}
+                              title={`Call ${patient.patientName}`}
+                            >
+                              📞
+                            </a>
+                            <a 
+                              href={getWhatsAppLink(patient.patientPhone, patient.patientName, patient.tokenNumber)}
+                              onClick={(e) => e.stopPropagation()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '50%',
+                                background: '#E8F5E9',
+                                color: '#2E7D32',
+                                textDecoration: 'none',
+                                fontSize: '13px',
+                                border: '1px solid #C8E6C9',
+                                transition: 'transform 0.1s'
+                              }}
+                              title={`WhatsApp ${patient.patientName}`}
+                            >
+                              💬
+                            </a>
+                          </>
                         )}
                       </div>
                     </div>
@@ -965,6 +1049,241 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
         </div>
       </div>
+
+      {/* Patient EMR Details Modal */}
+      {viewingPatient && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setViewingPatient(null)}>
+          <div style={{
+            background: 'var(--surface)',
+            borderRadius: 'var(--radius)',
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span className="pill pg" style={{ fontSize: '11px', marginBottom: '6px', display: 'inline-block' }}>
+                  Token {viewingPatient.tokenNumber}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
+                  {viewingPatient.patientName}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setViewingPatient(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: 'var(--text3)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Details */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Age / Gender</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
+                    {viewingPatient.patientAge || '—'} yrs · {viewingPatient.patientGender === 'M' ? 'Male' : viewingPatient.patientGender === 'F' ? 'Female' : 'Other'}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Visit Type</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px', textTransform: 'capitalize' }}>
+                    {viewingPatient.visitType || 'new'} Patient
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Contact Number</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
+                  {viewingPatient.patientPhone || '—'}
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Chief Complaints</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                  {viewingPatient.complaints && viewingPatient.complaints.length > 0 ? (
+                    viewingPatient.complaints.map(c => (
+                      <span key={c} style={{ background: 'var(--green-light)', color: 'var(--green-dark)', padding: '3px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 500 }}>
+                        {c}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: '13px', color: 'var(--text2)' }}>General Consultation</span>
+                  )}
+                </div>
+              </div>
+
+              {viewingPatient.describeComplaint && (
+                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Description / Notes</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '4px', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
+                    {viewingPatient.describeComplaint}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Current Medications</div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: viewingPatient.medication === 'yes' ? 'var(--amber-dark)' : 'var(--text2)', marginTop: '4px' }}>
+                  {viewingPatient.medication === 'yes' ? '⚠️ Taking existing medications (Review required)' : 'None'}
+                </div>
+              </div>
+
+              {viewingPatient.severity && (
+                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Severity Level</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: viewingPatient.severity.toLowerCase().includes('severe') ? 'var(--red)' : viewingPatient.severity.toLowerCase().includes('moderate') ? 'var(--amber)' : 'var(--green-dark)', marginTop: '4px' }}>
+                    {viewingPatient.severity}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {viewingPatient.patientPhone && (
+                  <>
+                    <a 
+                      href={`tel:${viewingPatient.patientPhone}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '11px',
+                        borderRadius: '8px',
+                        border: '1.5px solid var(--green)',
+                        background: 'var(--green-light)',
+                        color: 'var(--green-dark)',
+                        textDecoration: 'none',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textAlign: 'center'
+                      }}
+                    >
+                      📞 Call Phone
+                    </a>
+                    <a 
+                      href={getWhatsAppLink(viewingPatient.patientPhone, viewingPatient.patientName, viewingPatient.tokenNumber)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '11px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #2E7D32',
+                        background: '#E8F5E9',
+                        color: '#2E7D32',
+                        textDecoration: 'none',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textAlign: 'center'
+                      }}
+                    >
+                      💬 WhatsApp
+                    </a>
+                  </>
+                )}
+              </div>
+
+              {viewingPatient.status === 'waiting' && (
+                <button
+                  onClick={() => {
+                    handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'serving' });
+                    setViewingPatient(null);
+                  }}
+                  style={{
+                    background: 'var(--green)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🚀 Call Inside (Start Serving)
+                </button>
+              )}
+
+              {viewingPatient.status === 'serving' && (
+                <button
+                  onClick={() => {
+                    handleMarkDone(viewingPatient._id);
+                    setViewingPatient(null);
+                  }}
+                  style={{
+                    background: 'var(--green-dark)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✓ Complete Consultation
+                </button>
+              )}
+
+              {viewingPatient.status !== 'done' && viewingPatient.status !== 'cancelled' && (
+                <button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to cancel this booking?')) {
+                      handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'cancelled' });
+                      setViewingPatient(null);
+                    }
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--red)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: '6px',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Cancel Booking Token
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

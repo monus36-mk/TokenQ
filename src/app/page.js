@@ -465,53 +465,71 @@ export default function Home() {
                               </div>
                               <div style={{ display: 'flex', gap: '8px' }}>
                                 <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>{waitingAhead}</div>
+                                  <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
+                                    {selectedToken.status === 'done' || selectedToken.status === 'cancelled' ? '—' : waitingAhead}
+                                  </div>
                                   <div style={{ fontSize: '11px', color: 'var(--text2)' }}>ahead</div>
                                 </div>
                                 <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--amber)' }}>
-                                    {selectedToken.status === 'serving' ? 'Serving' : estWaitMin === 0 ? 'Ready / No wait' : `~${estWaitMin}m`}
+                                  <div style={{ fontSize: '17px', fontWeight: 600, color: selectedToken.status === 'done' ? 'var(--green)' : selectedToken.status === 'cancelled' ? 'var(--red)' : 'var(--amber)' }}>
+                                    {selectedToken.status === 'done' ? 'Completed' : selectedToken.status === 'cancelled' ? 'Cancelled' : selectedToken.status === 'serving' ? 'Serving' : estWaitMin === 0 ? 'Ready' : `~${estWaitMin}m`}
                                   </div>
                                   <div style={{ fontSize: '11px', color: 'var(--text2)' }}>est. wait</div>
                                 </div>
                               </div>
                             </div>
  
-                             {selectedToken.status === 'serving' ? (
-                               <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
-                                 <span style={{ fontSize: '18px' }}>🏥</span>
-                                 <div className="alert-txt">
-                                   <strong>It is your turn now!</strong>
-                                   Please enter the doctor's consulting room.
-                                 </div>
-                               </div>
-                             ) : waitingAhead === 0 ? (
-                               <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
-                                 <span style={{ fontSize: '18px' }}>🏥</span>
-                                 <div className="alert-txt">
-                                   <strong>You are next in line!</strong>
-                                   Please stand near the doctor's cabin. You will be called in a moment.
-                                 </div>
-                               </div>
-                             ) : waitingAhead < 5 ? (
-                               <div className="alert alert-a" style={{ borderLeftColor: 'var(--amber)' }}>
-                                 <span style={{ fontSize: '18px' }}>🏥</span>
-                                 <div className="alert-txt">
-                                   <strong>Wait at the clinic</strong>
-                                   Only {waitingAhead} patient(s) ahead of you. Please remain in the clinic waiting hall.
-                                 </div>
-                               </div>
-                             ) : (
-                               <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
-                                 <span style={{ fontSize: '18px' }}>🏡</span>
-                                 <div className="alert-txt">
-                                   <strong>Wait at home comfortably</strong>
-                                   You have {waitingAhead} patients ahead. We'll alert you when 3 are left to leave home.
-                                 </div>
-                               </div>
-                             )}
+                            {selectedToken.status === 'done' ? (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)', background: 'rgba(5, 150, 105, 0.05)' }}>
+                                <span style={{ fontSize: '18px' }}>✅</span>
+                                <div className="alert-txt">
+                                  <strong>Consultation Completed!</strong>
+                                  Thank you for visiting. Please collect your prescription from the doctor.
+                                </div>
+                              </div>
+                            ) : selectedToken.status === 'cancelled' ? (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--red)', background: 'rgba(220, 38, 38, 0.05)' }}>
+                                <span style={{ fontSize: '18px' }}>❌</span>
+                                <div className="alert-txt">
+                                  <strong>Booking Cancelled</strong>
+                                  This token has been cancelled. If you paid booking fees, your refund has been processed.
+                                </div>
+                              </div>
+                            ) : selectedToken.status === 'serving' ? (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                                <span style={{ fontSize: '18px' }}>🏥</span>
+                                <div className="alert-txt">
+                                  <strong>It is your turn now!</strong>
+                                  Please enter the doctor's consulting room.
+                                </div>
+                              </div>
+                            ) : waitingAhead === 0 ? (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                                <span style={{ fontSize: '18px' }}>🏥</span>
+                                <div className="alert-txt">
+                                  <strong>You are next in line!</strong>
+                                  Please stand near the doctor's cabin. You will be called in a moment.
+                                </div>
+                              </div>
+                            ) : waitingAhead < 5 ? (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--amber)' }}>
+                                <span style={{ fontSize: '18px' }}>🏥</span>
+                                <div className="alert-txt">
+                                  <strong>Wait at the clinic</strong>
+                                  Only {waitingAhead} patient(s) ahead of you. Please remain in the clinic waiting hall.
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                                <span style={{ fontSize: '18px' }}>🏡</span>
+                                <div className="alert-txt">
+                                  <strong>Wait at home comfortably</strong>
+                                  You have {waitingAhead} patients ahead. We'll alert you when 3 are left to leave home.
+                                </div>
+                              </div>
+                            )}
  
-                            {docDelay > 0 && (
+                            {docDelay > 0 && selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
                               <div className="alert alert-b">
                                 <span style={{ fontSize: '18px' }}>⏱️</span>
                                 <div className="alert-txt">
@@ -521,13 +539,15 @@ export default function Home() {
                               </div>
                             )}
  
-                            <button 
-                              className="btn-p" 
-                              style={{ width: '100%', marginTop: '16px', background: '#DC2626', color: 'white', border: 'none' }} 
-                              onClick={handleCancelBooking}
-                            >
-                              Cancel Booking
-                            </button>
+                            {selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
+                              <button 
+                                className="btn-p" 
+                                style={{ width: '100%', marginTop: '16px', background: '#DC2626', color: 'white', border: 'none' }} 
+                                onClick={handleCancelBooking}
+                              >
+                                Cancel Booking
+                              </button>
+                            )}
                             <button className="btn-s" style={{ marginTop: '8px' }} onClick={handleBackToHome}>← Back to home</button>
                           </div>
                         </div>
