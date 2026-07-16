@@ -24,6 +24,24 @@ export default function PatientHome({
   currentUser
 }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  const uniqueSpecialties = Array.from(new Set([
+    'All',
+    ...clinics.map(c => c.specialty).filter(Boolean),
+    ...clinics.flatMap(c => (c.doctors || []).map(d => d.specialty).filter(Boolean))
+  ])).map(spec => {
+    const specLower = spec.toLowerCase();
+    if (specLower.includes('general')) return 'General';
+    if (specLower.includes('dental')) return 'Dental';
+    if (specLower.includes('paediatric') || specLower.includes('pediatric')) return 'Paediatric';
+    if (specLower.includes('orthopaedic') || specLower.includes('orthopedic')) return 'Orthopaedic';
+    if (specLower.includes('gynaec')) return 'Gynaecology';
+    if (specLower.includes('dermat')) return 'Dermatology';
+    if (specLower.includes('ophthal')) return 'Ophthalmology';
+    return spec.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  });
+  const uniqueCategories = Array.from(new Set(uniqueSpecialties));
 
   // Filter clinics based on category and search query
   const filteredClinics = clinics.filter(clinic => {
@@ -59,7 +77,7 @@ export default function PatientHome({
     return (b.bookedCount || 0) - (a.bookedCount || 0);
   });
 
-  const categories = ['All', 'General', 'Dental', 'Paediatric'];
+
 
   // Find active upcoming bookings
   const activeBookings = userBookings.filter(b => b.status === 'waiting' || b.status === 'serving');
@@ -127,17 +145,87 @@ export default function PatientHome({
         </div>
       </div>
 
-      {/* Category Pills */}
-      <div className="cats">
-        {categories.map(cat => (
-          <div 
-            key={cat}
-            className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </div>
-        ))}
+      {/* Category Filter Dropdown */}
+      <div style={{ padding: '0 20px', marginBottom: '14px', position: 'relative' }}>
+        <button 
+          onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'var(--surface)',
+            border: '1.5px solid var(--border)',
+            borderRadius: '20px',
+            padding: '6px 14px',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--text)',
+            cursor: 'pointer',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            outline: 'none',
+            userSelect: 'none'
+          }}
+        >
+          🗂️ Specialty: <strong style={{ color: 'var(--green-dark)' }}>{selectedCategory}</strong> ▾
+        </button>
+
+        {showCategoryDropdown && (
+          <>
+            <div 
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
+              onClick={() => setShowCategoryDropdown(false)}
+            />
+            <div 
+              className="card"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: '20px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow)',
+                zIndex: 999,
+                width: '200px',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                padding: '6px 0',
+                margin: 0
+              }}
+            >
+              {uniqueCategories.map(cat => (
+                <div 
+                  key={cat}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setShowCategoryDropdown(false);
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: '13px',
+                    fontWeight: selectedCategory === cat ? 600 : 400,
+                    color: selectedCategory === cat ? 'var(--green-dark)' : 'var(--text)',
+                    background: selectedCategory === cat ? 'var(--green-light)' : 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedCategory !== cat) e.currentTarget.style.background = 'var(--surface2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedCategory !== cat) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <span>{cat}</span>
+                  {selectedCategory === cat && <span style={{ fontSize: '11px' }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Clinics and Bookings scrollable area */}
