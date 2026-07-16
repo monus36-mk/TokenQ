@@ -146,7 +146,7 @@ export default function PatientHome({
       </div>
 
       {/* Category Filter Dropdown */}
-      <div style={{ padding: '0 20px', marginBottom: '14px', position: 'relative' }}>
+      <div style={{ padding: '12px 20px 0', marginBottom: '12px', position: 'relative' }}>
         <button 
           onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
           style={{
@@ -166,7 +166,7 @@ export default function PatientHome({
             userSelect: 'none'
           }}
         >
-          🗂️ Specialty: <strong style={{ color: 'var(--green-dark)' }}>{selectedCategory}</strong> ▾
+          Specialty: <strong style={{ color: 'var(--green-dark)' }}>{selectedCategory}</strong> ▾
         </button>
 
         {showCategoryDropdown && (
