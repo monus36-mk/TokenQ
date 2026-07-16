@@ -115,7 +115,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
         {/* LEFT COLUMN: INFO & BOOKING CTA */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="card" style={{ cursor: 'default', margin: 0, padding: '20px' }}>
-            <div className="sec-label" style={{ marginTop: 0 }}>📍 Clinic Info</div>
+            <div className="sec-label" style={{ marginTop: 0 }}>Clinic Info</div>
             <div className="ilist">
               <div className="irow" style={{ alignItems: 'flex-start' }}>
                 <span className="ilabel" style={{ flexShrink: 0, width: '90px' }}>📍 Address</span>
