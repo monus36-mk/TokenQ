@@ -380,6 +380,7 @@ export default function Home() {
               {patientScreen === 'detail' && selectedClinic && (
                 <ClinicDetail 
                   clinic={selectedClinic}
+                  bookings={bookings}
                   waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
                   onBack={handleBackToHome}
                   onStartBooking={handleStartBooking}

@@ -16,6 +16,21 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   const [activeTab, setActiveTab] = useState(isClinicAdmin ? 'queue' : 'add-clinic');
   const [viewingPatient, setViewingPatient] = useState(null);
 
+  const [editAddress, setEditAddress] = useState('');
+  const [editFee, setEditFee] = useState('');
+  const [editContact, setEditContact] = useState('');
+  const [loadedClinicId, setLoadedClinicId] = useState(null);
+
+  useEffect(() => {
+    const activeClinic = clinics.find(c => c._id === selectedClinicId) || clinics[0];
+    if (activeClinic && activeClinic._id !== loadedClinicId) {
+      setEditAddress(activeClinic.address || '');
+      setEditFee(activeClinic.fee?.toString() || '');
+      setEditContact(activeClinic.contact || '');
+      setLoadedClinicId(activeClinic._id);
+    }
+  }, [selectedClinicId, clinics, loadedClinicId]);
+
   // Update selectedClinicId if default clinic loaded dynamically
   useEffect(() => {
     if (isClinicAdmin && currentUser?.clinicId) {
@@ -29,7 +44,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   const [formDoctors, setFormDoctors] = useState([
     { name: '', specialty: 'General', timings: '9:00 AM – 1:00 PM', session: 'Morning' }
   ]);
-  const [newDoc, setNewDoc] = useState({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM' });
+  const [newDoc, setNewDoc] = useState({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
   const [docError, setDocError] = useState('');
 
   // Reset doctor filter when selected clinic changes
@@ -234,19 +249,48 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           doctorName: newDoc.name,
           specialty: newDoc.specialty,
           session: newDoc.session,
-          timings: newDoc.timings
+          timings: newDoc.timings,
+          qualification: newDoc.qualification,
+          experience: newDoc.experience
         })
       });
       const json = await res.json();
       if (json.success) {
         alert(`Doctor ${newDoc.name} registered successfully!`);
-        setNewDoc({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM' });
+        setNewDoc({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
         onRefresh();
       } else {
         setDocError(json.error || 'Failed to add doctor');
       }
     } catch (err) {
       setDocError('Error adding doctor: ' + err.message);
+    }
+  };
+
+  const handleUpdateClinicProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateClinicDetails',
+          clinicId: clinic._id,
+          address: editAddress,
+          fee: Number(editFee),
+          contact: editContact
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert('Clinic details updated successfully!');
+        setLoadedClinicId(null);
+        onRefresh();
+      } else {
+        alert('Failed to update clinic details: ' + json.error);
+      }
+    } catch (err) {
+      alert('Error updating clinic details: ' + err.message);
     }
   };
 
@@ -792,6 +836,48 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 </div>
               </div>
 
+              <div className="sec-label">📍 Update Clinic Details</div>
+              <form onSubmit={handleUpdateClinicProfile} className="ctrl-card" style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', marginBottom: '16px' }}>
+                <div className="fg" style={{ margin: 0 }}>
+                  <label className="fl">Clinic Address</label>
+                  <input 
+                    type="text" 
+                    className="fi-input" 
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    required 
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="fg" style={{ margin: 0 }}>
+                    <label className="fl">Consultation Fee (₹)</label>
+                    <input 
+                      type="number" 
+                      className="fi-input" 
+                      value={editFee}
+                      onChange={(e) => setEditFee(e.target.value)}
+                      required 
+                    />
+                  </div>
+                  
+                  <div className="fg" style={{ margin: 0 }}>
+                    <label className="fl">Contact Number</label>
+                    <input 
+                      type="text" 
+                      className="fi-input" 
+                      value={editContact}
+                      onChange={(e) => setEditContact(e.target.value)}
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-p" style={{ padding: '9px', fontSize: '13px', marginTop: '4px', width: 'auto', alignSelf: 'flex-start' }}>
+                  Save Details ✓
+                </button>
+              </form>
+
               <div className="sec-label">👨‍⚕️ Manage Doctors ({clinicDoctors.length})</div>
               {clinicDoctors.map((doc, idx) => {
                 const docBookings = clinicBookings.filter(b => b.doctorName === doc.name);
@@ -800,7 +886,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border2)', paddingBottom: '8px', marginBottom: '10px' }}>
                       <div>
                         <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>🎓 {doc.specialty} · ⏰ {doc.timings} ({doc.session})</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>
+                          🎓 {doc.specialty}
+                          {doc.qualification && ` · ${doc.qualification}`}
+                          {doc.experience && ` (${doc.experience})`}
+                          {` · ⏰ ${doc.timings} (${doc.session})`}
+                        </div>
                       </div>
                       <div className={`pill ${doc.isUnavailable ? 'pr' : 'pg'}`} style={{ fontSize: '10px' }}>
                         {doc.isUnavailable ? 'Offline' : 'Active'}
@@ -921,6 +1012,31 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     onChange={(e) => setNewDoc({ ...newDoc, timings: e.target.value })}
                     required 
                   />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="fg" style={{ margin: 0 }}>
+                    <label className="fl">Qualification</label>
+                    <input 
+                      type="text" 
+                      className="fi-input" 
+                      placeholder="e.g. MBBS, MD" 
+                      value={newDoc.qualification}
+                      onChange={(e) => setNewDoc({ ...newDoc, qualification: e.target.value })}
+                      required 
+                    />
+                  </div>
+                  <div className="fg" style={{ margin: 0 }}>
+                    <label className="fl">Experience</label>
+                    <input 
+                      type="text" 
+                      className="fi-input" 
+                      placeholder="e.g. 10+ Yrs Exp" 
+                      value={newDoc.experience}
+                      onChange={(e) => setNewDoc({ ...newDoc, experience: e.target.value })}
+                      required 
+                    />
+                  </div>
                 </div>
 
                 <button type="submit" className="btn-p" style={{ padding: '9px', fontSize: '13px', marginTop: '4px' }}>

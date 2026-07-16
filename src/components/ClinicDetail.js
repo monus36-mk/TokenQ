@@ -13,7 +13,7 @@ const isClinicOpen = (clinic) => {
   return true;
 };
 
-export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0, onRequireAuth }) {
+export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0, onRequireAuth, bookings = [] }) {
   const booked = clinic.bookedCount || 0;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -141,47 +141,67 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
               );
             }
 
-            return clinicDoctors.map((doc, idx) => (
-              <div key={idx} className="card" style={{ cursor: 'default', margin: 0, padding: '15px', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text2)', margin: '2px 0' }}>
-                      🎓 {doc.specialty} Specialist
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--green-dark)', fontWeight: 600 }}>
-                      ⏰ {doc.timings} ({doc.session})
-                    </div>
-                    {doc.delayMinutes > 0 && (
-                      <div style={{ color: 'var(--red)', fontSize: '11px', fontWeight: 500, marginTop: '3px' }}>
-                        ⏱️ Delayed by {doc.delayMinutes} mins
+            return clinicDoctors.map((doc, idx) => {
+              const todayBookingsCount = bookings.filter(b => 
+                b.clinicId === clinic._id && 
+                b.doctorName === doc.name &&
+                new Date(b.createdAt).toDateString() === new Date().toDateString()
+              ).length;
+
+              return (
+                <div key={idx} className="card" style={{ cursor: 'default', margin: 0, padding: '15px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
+                      {(doc.qualification || doc.experience) && (
+                        <div style={{ fontSize: '12px', color: 'var(--text2)', margin: '2px 0' }}>
+                          {doc.qualification && `🎓 ${doc.qualification}`}
+                          {doc.qualification && doc.experience && ' · '}
+                          {doc.experience && `💼 ${doc.experience}`}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '12px', color: 'var(--text2)', margin: '2px 0' }}>
+                        🏥 {doc.specialty} Specialist
                       </div>
-                    )}
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--green-dark)', fontWeight: 600 }}>
+                          ⏰ {doc.timings} ({doc.session})
+                        </div>
+                        <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(5, 150, 105, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(5, 150, 105, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
+                          🔥 {todayBookingsCount} booked
+                        </span>
+                      </div>
+                      {doc.delayMinutes > 0 && (
+                        <div style={{ color: 'var(--red)', fontSize: '11px', fontWeight: 500, marginTop: '3px' }}>
+                          ⏱️ Delayed by {doc.delayMinutes} mins
+                        </div>
+                      )}
+                    </div>
+                    <button 
+                      className="btn-p" 
+                      onClick={() => {
+                        if (!currentUser) {
+                          if (onRequireAuth) onRequireAuth(doc);
+                        } else {
+                          onStartBooking(doc);
+                        }
+                      }}
+                      disabled={!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused}
+                      style={{ 
+                        opacity: (!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused) ? 0.5 : 1, 
+                        padding: '10px 28px', 
+                        fontSize: '14px', 
+                        minWidth: '100px',
+                        width: 'auto',
+                        marginTop: 0 
+                      }}
+                    >
+                      {!isClinicOpen(clinic) ? 'Closed' : doc.isUnavailable ? 'Offline' : doc.isPaused ? 'Paused' : 'Book'}
+                    </button>
                   </div>
-                  <button 
-                    className="btn-p" 
-                    onClick={() => {
-                      if (!currentUser) {
-                        if (onRequireAuth) onRequireAuth(doc);
-                      } else {
-                        onStartBooking(doc);
-                      }
-                    }}
-                    disabled={!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused}
-                    style={{ 
-                      opacity: (!isClinicOpen(clinic) || doc.isUnavailable || doc.isPaused) ? 0.5 : 1, 
-                      padding: '10px 28px', 
-                      fontSize: '14px', 
-                      minWidth: '100px',
-                      width: 'auto',
-                      marginTop: 0 
-                    }}
-                  >
-                    {!isClinicOpen(clinic) ? 'Closed' : doc.isUnavailable ? 'Offline' : doc.isPaused ? 'Paused' : 'Book'}
-                  </button>
                 </div>
-              </div>
-            ));
+              );
+            });
           })()}
         </div>
 

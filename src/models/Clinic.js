@@ -64,6 +64,8 @@ const ClinicSchema = new mongoose.Schema({
     specialty: { type: String, required: true },
     timings: { type: String, required: true },
     session: { type: String, default: 'Morning' },
+    qualification: { type: String, default: 'MBBS' },
+    experience: { type: String, default: '5+ Years Exp' },
     isUnavailable: { type: Boolean, default: false },
     isPaused: { type: Boolean, default: false },
     delayMinutes: { type: Number, default: 0 }

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { action, clinicId, bookingId, status, limit, delay, isUnavailable, timings, isPaused, doctorName, specialty, session } = body;
+    const { action, clinicId, bookingId, status, limit, delay, isUnavailable, timings, isPaused, doctorName, specialty, session, qualification, experience } = body;
 
     if (!action) {
       return NextResponse.json({ success: false, error: 'Missing action parameter' }, { status: 400 });
@@ -45,6 +45,17 @@ export async function POST(request) {
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 
+      // Clinic-level profile details update
+      if (action === 'updateClinicDetails') {
+        const { address, fee, contact } = body;
+        const clinic = await Clinic.findByIdAndUpdate(clinicId, {
+          address,
+          fee: Number(fee),
+          contact
+        }, { new: true });
+        return NextResponse.json({ success: true, data: clinic, source: 'database' });
+      }
+
       // Add a Doctor dynamically to the clinic
       if (action === 'addDoctor') {
         const clinic = await Clinic.findById(clinicId);
@@ -62,6 +73,8 @@ export async function POST(request) {
           specialty: specialty || 'General',
           timings: timings || '9:00 AM – 1:00 PM',
           session: session || 'Morning',
+          qualification: qualification || 'MBBS',
+          experience: experience || '5+ Years Exp',
           isUnavailable: false,
           isPaused: false,
           delayMinutes: 0
