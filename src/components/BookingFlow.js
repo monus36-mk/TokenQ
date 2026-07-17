@@ -802,7 +802,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                     <span>🔔</span>
                     <div className="alert-txt">
                       <strong>Booking Activated Successfully</strong>
-                      Your token is ready. We will notify you via SMS when 3 ahead.
+                      Your token is ready. We will notify you via WhatsApp when 3 ahead.
                     </div>
                   </div>
 

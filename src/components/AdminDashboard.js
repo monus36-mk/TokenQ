@@ -342,7 +342,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   const handleAddDelay = () => {
     const newDelay = (clinic.delayMinutes || 0) + 30;
     handleAdminAction({ action: 'updateDelay', delay: newDelay });
-    alert(`Doctor delayed by 30 mins. All waiting patients notified via SMS.`);
+    alert(`Doctor delayed by 30 mins. All waiting patients notified via WhatsApp.`);
   };
 
   const handleToggleUnavailable = () => {
@@ -1072,7 +1072,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           {/* Cancel Slots / Clear queue button */}
                           <button 
                             className="act-btn danger" 
-                            onClick={() => confirm(`Cancel remaining slots for ${doc.name}?`) && alert('Slots cancelled. Patient SMS notifications dispatched.')}
+                            onClick={() => confirm(`Cancel remaining slots for ${doc.name}?`) && alert('Slots cancelled. Patient WhatsApp notifications dispatched.')}
                             style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
                           >
                             <div className="act-icon" style={{ background: 'var(--red-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>❌</div>
