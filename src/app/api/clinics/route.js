@@ -28,8 +28,10 @@ export async function GET() {
     }).lean();
 
     const bookingsPerClinic = todaysBookings.reduce((acc, b) => {
-      const cid = b.clinicId.toString();
-      acc[cid] = (acc[cid] || 0) + 1;
+      if (b.status !== 'cancelled') {
+        const cid = b.clinicId.toString();
+        acc[cid] = (acc[cid] || 0) + 1;
+      }
       return acc;
     }, {});
 

@@ -14,7 +14,11 @@ const isClinicOpen = (clinic) => {
 };
 
 export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUser, onReviewAdded, waitingCount = 0, onRequireAuth, bookings = [] }) {
-  const booked = clinic.bookedCount || 0;
+  const booked = bookings.filter(b => 
+    b.clinicId === clinic._id && 
+    b.status !== 'cancelled' &&
+    new Date(b.createdAt).toDateString() === new Date().toDateString()
+  ).length;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -148,10 +152,10 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
             }
 
             return clinicDoctors.map((doc, idx) => {
-              const todayBookingsCount = bookings.filter(b => 
+              const totalConsultationsCount = bookings.filter(b => 
                 b.clinicId === clinic._id && 
                 b.doctorName === doc.name &&
-                new Date(b.createdAt).toDateString() === new Date().toDateString()
+                b.status !== 'cancelled'
               ).length;
 
               return (
@@ -174,7 +178,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                           ⏰ {doc.timings} ({doc.session})
                         </div>
                         <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(5, 150, 105, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(5, 150, 105, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
-                          Consultations: {todayBookingsCount}
+                          Consultations: {totalConsultationsCount}
                         </span>
                       </div>
                       {doc.delayMinutes > 0 && (
