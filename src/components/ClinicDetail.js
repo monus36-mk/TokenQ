@@ -174,7 +174,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                           ⏰ {doc.timings} ({doc.session})
                         </div>
                         <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(5, 150, 105, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(5, 150, 105, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
-                          🔥 {todayBookingsCount} booked
+                          Consultations: {todayBookingsCount}
                         </span>
                       </div>
                       {doc.delayMinutes > 0 && (
