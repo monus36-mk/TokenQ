@@ -320,7 +320,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
       const json = await res.json();
       if (json.success) {
         alert('Clinic details updated successfully!');
-        setLoadedClinicId(null);
+        const updatedClinic = json.data;
+        if (updatedClinic) {
+          setEditAddress(updatedClinic.address || '');
+          setEditFee(updatedClinic.fee?.toString() || '');
+          setEditContact(updatedClinic.contact || '');
+        }
         onRefresh();
       } else {
         alert('Failed to update clinic details: ' + json.error);
