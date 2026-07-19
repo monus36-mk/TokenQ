@@ -16,6 +16,8 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
   const [enteredOtp, setEnteredOtp] = useState('');
   const [sentOtp, setSentOtp] = useState('');
   const [isOtpFallback, setIsOtpFallback] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Stage 1: Check Email
   const handleCheckEmail = async (e) => {
@@ -246,6 +248,90 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
     }
   };
 
+  // Password Reset Handlers
+  const handleInitiateForgotPassword = async (e) => {
+    if (e) e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    setIsOtpFallback(false);
+    setEnteredOtp('');
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          action: 'send-otp'
+        })
+      });
+      const json = await response.json();
+      if (json.success) {
+        if (json.fallbackOtp) {
+          setIsOtpFallback(true);
+          setSentOtp(json.fallbackOtp);
+        }
+        setStage('forgot-otp');
+      } else {
+        setError(json.error || 'Failed to send reset code');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyResetOtp = (e) => {
+    e.preventDefault();
+    if (!enteredOtp || enteredOtp.length < 4) {
+      setError('Please enter the 4-digit code');
+      return;
+    }
+    setError('');
+    setStage('reset-password');
+  };
+
+  const handleCompletePasswordReset = async (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 4) {
+      setError('Password must be at least 4 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: enteredOtp,
+          newPassword,
+          action: 'reset-password'
+        })
+      });
+      const json = await response.json();
+      if (json.success) {
+        onLoginSuccess(json.user);
+      } else {
+        setError(json.error || 'Password reset failed');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Error resetting password. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative', background: 'var(--surface)' }}>
       
@@ -332,6 +418,25 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
                 required
                 autoFocus
               />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-8px' }}>
+              <button
+                type="button"
+                onClick={handleInitiateForgotPassword}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--green)',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '4px 0'
+                }}
+                disabled={isSubmitting}
+              >
+                Forgot Password?
+              </button>
             </div>
 
             <button type="submit" className="btn-p" disabled={isSubmitting}>
@@ -522,6 +627,121 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
               style={{ width: '100%' }}
             >
               Change Details / Back
+            </button>
+          </form>
+        )}
+
+        {/* STAGE: FORGOT PASSWORD OTP VERIFICATION */}
+        {stage === 'forgot-otp' && (
+          <form onSubmit={handleVerifyResetOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔑</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+                Reset Your Password
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '6px', lineHeight: '1.4' }}>
+                We sent a 4-digit password reset OTP to:<br/>
+                <strong style={{ color: 'var(--green)' }}>{email}</strong>
+              </div>
+            </div>
+
+            {isOtpFallback && (
+              <div style={{ color: '#92400E', background: '#FEF3C7', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', border: '1px solid #FCD34D', textAlign: 'center' }}>
+                ⚠️ Demo / Testing Mode.<br/>
+                Use reset code: <strong style={{ fontSize: '16px', color: 'var(--green-dark)' }}>{sentOtp}</strong>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ color: 'var(--red)', background: 'var(--red-light)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(163, 45, 45, 0.15)' }}>
+                ⚠️ {error}
+              </div>
+            )}
+
+            <div className="fg">
+              <label className="fl" style={{ textAlign: 'center', display: 'block' }}>Enter 4-Digit Code</label>
+              <input
+                type="text"
+                className="fi-input"
+                placeholder="e.g. 1234"
+                value={enteredOtp}
+                onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                style={{ textAlign: 'center', fontSize: '24px', letterSpacing: '8px', fontWeight: 'bold', height: '52px' }}
+                required
+                autoFocus
+              />
+            </div>
+
+            <button type="submit" className="btn-p" style={{ marginTop: '8px' }} disabled={isSubmitting}>
+              Verify Code & Continue →
+            </button>
+
+            <button
+              type="button"
+              className="btn-s"
+              onClick={() => { setStage('password'); setError(''); }}
+              style={{ width: '100%' }}
+            >
+              Back to Login
+            </button>
+          </form>
+        )}
+
+        {/* STAGE: ENTER NEW PASSWORD */}
+        {stage === 'reset-password' && (
+          <form onSubmit={handleCompletePasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔒</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+                Create New Password
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '4px' }}>
+                For account: {email}
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ color: 'var(--red)', background: 'var(--red-light)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(163, 45, 45, 0.15)' }}>
+                ⚠️ {error}
+              </div>
+            )}
+
+            <div className="fg">
+              <label className="fl">New Password</label>
+              <input
+                type="password"
+                className="fi-input"
+                placeholder="Choose a new password (min 4 chars)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="fg">
+              <label className="fl">Confirm Password</label>
+              <input
+                type="password"
+                className="fi-input"
+                placeholder="Re-type new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn-p" style={{ marginTop: '8px' }} disabled={isSubmitting}>
+              {isSubmitting ? 'Resetting Password...' : 'Reset Password & Log In ✓'}
+            </button>
+
+            <button
+              type="button"
+              className="btn-s"
+              onClick={() => { setStage('forgot-otp'); setError(''); }}
+              style={{ width: '100%' }}
+            >
+              Back to OTP
             </button>
           </form>
         )}

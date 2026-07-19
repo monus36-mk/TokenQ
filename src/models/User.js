@@ -42,6 +42,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'Thanjavur',
   },
+  resetPasswordOtp: {
+    type: String,
+    required: false,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    required: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -78,6 +78,14 @@ const ClinicSchema = new mongoose.Schema({
   adminPassword: {
     type: String
   },
+  resetPasswordOtp: {
+    type: String,
+    required: false,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    required: false,
+  },
   reviews: [{
     userName: { type: String, required: true },
     rating: { type: Number, required: true },
