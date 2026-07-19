@@ -148,33 +148,9 @@ export async function POST(request) {
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 
-      // Booking status update & queue advancement per Doctor
+      // Booking status update per Doctor
       if (action === 'updateBookingStatus') {
         const booking = await Booking.findByIdAndUpdate(bookingId, { status }, { new: true });
-        
-        if (status === 'done') {
-          // Find if there is an active serving booking for this doctor
-          const currentServing = await Booking.findOne({ 
-            clinicId: booking.clinicId, 
-            doctorName: booking.doctorName, 
-            status: 'serving' 
-          });
-          
-          if (!currentServing) {
-            // Retrieve and advance the next patient in this specific doctor's queue
-            const nextWaiting = await Booking.findOne({ 
-              clinicId: booking.clinicId, 
-              doctorName: booking.doctorName, 
-              status: 'waiting' 
-            }).sort({ createdAt: 1 });
-            
-            if (nextWaiting) {
-              nextWaiting.status = 'serving';
-              await nextWaiting.save();
-            }
-          }
-        }
-        
         return NextResponse.json({ success: true, data: booking, source: 'database' });
       }
 

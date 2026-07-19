@@ -19,9 +19,12 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
 
   // Stage 1: Check Email
   const handleCheckEmail = async (e) => {
-    e.preventDefault();
-    if (!email || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim().toLowerCase())) {
-      setError('Please enter a valid email address');
+    if (e) e.preventDefault();
+    const emailTrimmed = email.trim().toLowerCase();
+    const isGmail = emailTrimmed.endsWith('@gmail.com') || emailTrimmed === 'admin@gmail.com';
+
+    if (!email || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailTrimmed) || !isGmail) {
+      setError('Please enter a valid Gmail address (ending in @gmail.com)');
       return;
     }
 
@@ -410,22 +413,16 @@ export default function AuthScreens({ onLoginSuccess, onClose }) {
               
               <div className="fg" style={{ flex: 1.5 }}>
                 <label className="fl">Gender</label>
-                <div className="gender-toggle" style={{ display: 'flex', border: '1.5px solid var(--border2)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', height: '42px' }}>
+                <div className="gender-toggle" style={{ display: 'flex', gap: '8px', width: '100%' }}>
                   {['M', 'F', 'O'].map(g => (
                     <div 
                       key={g} 
                       className={`gbtn ${gender === g ? 'sel' : ''}`} 
                       onClick={() => setGender(g)}
                       style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        lineHeight: '39px',
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
                         background: gender === g ? 'var(--text)' : 'var(--surface)',
                         color: gender === g ? 'white' : 'var(--text2)',
-                        transition: 'all 0.15s'
+                        borderColor: gender === g ? 'var(--text)' : 'var(--border2)'
                       }}
                     >
                       {g === 'M' ? 'Male' : g === 'F' ? 'Female' : 'Other'}

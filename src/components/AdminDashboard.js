@@ -194,7 +194,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     return d.getDate() === today.getDate() &&
            d.getMonth() === today.getMonth() &&
            d.getFullYear() === today.getFullYear();
-  });
+  }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   const clinicDoctors = clinic.doctors && clinic.doctors.length > 0
     ? clinic.doctors
@@ -709,6 +709,16 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       </>
                     )}
                     <button 
+                      className="btn-rej" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAdminAction({ action: 'updateBookingStatus', bookingId: currentServingPatient._id, status: 'waiting' });
+                      }}
+                      style={{ marginRight: '6px' }}
+                    >
+                      Undo ↩
+                    </button>
+                    <button 
                       className="btn-done" 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -721,21 +731,16 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 </div>
               ) : (
                 <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', marginBottom: '14px', fontSize: '13px' }}>
-                  No patient is currently being serving. Click "Done" on the previous patient or select from waiting.
+                  No patient is currently being served. Click "Next Up 🚀" next to a patient in the queue to start serving them.
                 </div>
               )}
 
               <div className="sec-label">Queue ({queuePatients.length} waiting)</div>
               {queuePatients.length > 0 ? (
                 queuePatients.map((patient, index) => {
-                  // Mock distance display
-                  const labels = ['Waiting', 'Travelling', 'At home'];
-                  const styles = ['pa', 'pb', 'pgr']; // yellow, blue, grey
-                  const indexStyle = index === 0 ? 0 : index < 3 ? 1 : 2; 
-
                   return (
                     <div key={patient._id} className="qi" style={{ cursor: 'pointer' }} onClick={() => setViewingPatient(patient)}>
-                      <div className="tkbadge" style={{ background: indexStyle === 0 ? 'var(--amber-light)' : indexStyle === 1 ? 'var(--blue-light)' : 'var(--surface2)', color: indexStyle === 0 ? 'var(--amber)' : indexStyle === 1 ? 'var(--blue)' : 'var(--text2)' }}>
+                      <div className="tkbadge" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
                         {patient.tokenNumber}
                       </div>
                       <div style={{ flex: 1 }}>
@@ -746,7 +751,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span 
-                          className={`pill ${styles[indexStyle]}`}
+                          className="pill pa"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleAdminAction({ action: 'updateBookingStatus', bookingId: patient._id, status: 'serving' });
@@ -757,7 +762,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           }}
                           title="Click to start serving this patient"
                         >
-                          {indexStyle === 0 ? 'Next Up 🚀' : labels[indexStyle]}
+                          Next Up 🚀
                         </span>
                         {patient.patientPhone && (
                           <>
