@@ -18,6 +18,19 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Live Tracker completed rating states
+  const [activeRating, setActiveRating] = useState(5);
+  const [activeComment, setActiveComment] = useState('');
+  const [isRatingSubmitted, setIsRatingSubmitted] = useState(false);
+  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
+
+  useEffect(() => {
+    setIsRatingSubmitted(false);
+    setIsRatingSubmitting(false);
+    setActiveRating(5);
+    setActiveComment('');
+  }, [selectedToken?._id]);
+
   // Authentication states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -128,6 +141,16 @@ export default function Home() {
     }
   }, [bookings, selectedToken]);
 
+  // Sync selectedClinic with background updates
+  useEffect(() => {
+    if (selectedClinic) {
+      const updated = clinics.find(c => c._id === selectedClinic._id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedClinic)) {
+        setSelectedClinic(updated);
+      }
+    }
+  }, [clinics, selectedClinic]);
+
   // History popstate listener for back button support
   useEffect(() => {
     const handlePopState = () => {
@@ -168,9 +191,13 @@ export default function Home() {
       const clinic = clinics.find(c => c._id === pendingClinicId);
       if (clinic) {
         setSelectedClinic(clinic);
+        setPendingClinicId(null);
         if (pendingDoctorName) {
           const doc = clinic.doctors?.find(d => d.name === pendingDoctorName);
-          if (doc) setSelectedDoctor(doc);
+          if (doc) {
+            setSelectedDoctor(doc);
+            setPendingDoctorName(null);
+          }
         }
       }
     }
@@ -182,6 +209,7 @@ export default function Home() {
       const token = bookings.find(b => b._id === pendingTokenId);
       if (token) {
         setSelectedToken(token);
+        setPendingTokenId(null);
       }
     }
   }, [pendingTokenId, bookings]);
@@ -233,6 +261,39 @@ export default function Home() {
     } catch (err) {
       console.error(err);
       alert('Error cancelling booking.');
+    }
+  };
+
+  const handleLiveTrackerSubmitReview = async () => {
+    if (!selectedToken) return;
+    setIsRatingSubmitting(true);
+    try {
+      const res = await fetch('/api/clinics', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'addReview',
+          clinicId: selectedToken.clinicId,
+          review: {
+            userName: selectedToken.patientName || currentUser?.name || 'Anonymous Patient',
+            rating: activeRating,
+            comment: activeComment.trim() || 'Consultation completed successfully!'
+          }
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setIsRatingSubmitted(true);
+        // Update local clinics state to reflect the new rating
+        setClinics(prev => prev.map(c => c._id === json.data._id ? json.data : c));
+        fetchData(); // Refresh state
+      } else {
+        alert('Failed to submit review: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error submitting review: ' + err.message);
+    } finally {
+      setIsRatingSubmitting(false);
     }
   };
 
@@ -481,15 +542,109 @@ export default function Home() {
                             </div>
  
                             {selectedToken.status === 'done' ? (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)', background: 'rgba(5, 150, 105, 0.05)' }}>
-                                <span style={{ fontSize: '18px' }}>✅</span>
-                                <div className="alert-txt">
-                                  <strong>Consultation Completed!</strong>
-                                  Thank you for visiting. Please collect your prescription from the doctor.
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div className="alert alert-g" style={{ borderLeft: '4px solid var(--green)' }}>
+                                  <span style={{ fontSize: '18px' }}>✅</span>
+                                  <div className="alert-txt">
+                                    <strong>Consultation Completed!</strong>
+                                    Thank you for visiting. Please collect your prescription from the doctor.
+                                  </div>
                                 </div>
+
+                                {/* Instant Feedback Rating Interface */}
+                                {!isRatingSubmitted ? (
+                                  <div style={{ 
+                                    background: 'var(--surface2)', 
+                                    borderRadius: 'var(--radius)', 
+                                    padding: '16px',
+                                    border: '1.5px solid var(--border)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '12px'
+                                  }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                      ⭐ Rate your consultation experience
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '-6px' }}>
+                                      Help others find the best care at this clinic
+                                    </div>
+
+                                    {/* Star selectors */}
+                                    <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
+                                      {[1, 2, 3, 4, 5].map(star => (
+                                        <span 
+                                          key={star}
+                                          onClick={() => setActiveRating(star)} 
+                                          style={{ 
+                                            fontSize: '28px', 
+                                            cursor: 'pointer', 
+                                            opacity: star <= activeRating ? '1' : '.3',
+                                            transition: 'opacity 0.15s'
+                                          }}
+                                        >
+                                          ⭐
+                                        </span>
+                                      ))}
+                                    </div>
+
+                                    {/* Comment input */}
+                                    <input
+                                      type="text"
+                                      placeholder="Write a brief comment (optional)..."
+                                      value={activeComment}
+                                      onChange={(e) => setActiveComment(e.target.value)}
+                                      style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border2)',
+                                        background: 'var(--surface)',
+                                        fontSize: '12px',
+                                        fontFamily: 'inherit',
+                                        outline: 'none'
+                                      }}
+                                    />
+
+                                    {/* Submit button */}
+                                    <button
+                                      type="button"
+                                      onClick={handleLiveTrackerSubmitReview}
+                                      disabled={isRatingSubmitting}
+                                      style={{
+                                        background: 'var(--green)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '9px 16px',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        alignSelf: 'flex-start',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                        opacity: isRatingSubmitting ? 0.7 : 1
+                                      }}
+                                    >
+                                      {isRatingSubmitting ? 'Submitting...' : 'Submit Feedback ✓'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div style={{ 
+                                    background: 'rgba(5, 150, 105, 0.05)', 
+                                    borderRadius: 'var(--radius)', 
+                                    padding: '16px',
+                                    border: '1.5px solid var(--green)',
+                                    textAlign: 'center',
+                                    color: 'var(--green-dark)',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    animation: 'fadeIn 0.3s ease'
+                                  }}>
+                                    ❤️ Thank you! Your rating of {activeRating} ⭐ has been shared.
+                                  </div>
+                                )}
                               </div>
                             ) : selectedToken.status === 'cancelled' ? (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--red)', background: 'rgba(220, 38, 38, 0.05)' }}>
+                              <div className="alert alert-r" style={{ borderLeft: '4px solid var(--red)' }}>
                                 <span style={{ fontSize: '18px' }}>❌</span>
                                 <div className="alert-txt">
                                   <strong>Booking Cancelled</strong>
@@ -497,7 +652,7 @@ export default function Home() {
                                 </div>
                               </div>
                             ) : selectedToken.status === 'serving' ? (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                              <div className="alert alert-g alert-pulse" style={{ borderLeft: '4px solid var(--green)', padding: '16px' }}>
                                 <span style={{ fontSize: '18px' }}>🏥</span>
                                 <div className="alert-txt">
                                   <strong>It is your turn now!</strong>
@@ -505,7 +660,7 @@ export default function Home() {
                                 </div>
                               </div>
                             ) : waitingAhead === 0 ? (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                              <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
                                 <span style={{ fontSize: '18px' }}>🏥</span>
                                 <div className="alert-txt">
                                   <strong>You are next in line!</strong>
@@ -513,7 +668,7 @@ export default function Home() {
                                 </div>
                               </div>
                             ) : waitingAhead < 5 ? (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--amber)' }}>
+                              <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
                                 <span style={{ fontSize: '18px' }}>🏥</span>
                                 <div className="alert-txt">
                                   <strong>Wait at the clinic</strong>
@@ -521,7 +676,7 @@ export default function Home() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="alert alert-a" style={{ borderLeftColor: 'var(--green)' }}>
+                              <div className="alert alert-b" style={{ borderLeft: '4px solid var(--blue)' }}>
                                 <span style={{ fontSize: '18px' }}>🏡</span>
                                 <div className="alert-txt">
                                   <strong>Wait at home comfortably</strong>

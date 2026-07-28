@@ -66,6 +66,14 @@ const BookingSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  clinicalNotes: {
+    type: String,
+    default: '',
+  },
+  prescription: {
+    type: String,
+    default: '',
+  },
   createdAt: {
     type: Date,
     default: Date.now,

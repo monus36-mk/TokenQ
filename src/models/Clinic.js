@@ -31,6 +31,10 @@ const ClinicSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  profilePic: {
+    type: String,
+    default: '',
+  },
   rating: {
     type: Number,
     default: 0,

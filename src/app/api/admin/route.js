@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { action, clinicId, bookingId, status, limit, delay, isUnavailable, timings, isPaused, doctorName, specialty, session, qualification, experience } = body;
+    const { action, clinicId, bookingId, status, limit, delay, isUnavailable, timings, isPaused, doctorName, specialty, session, qualification, experience, prescription, clinicalNotes } = body;
 
     if (!action) {
       return NextResponse.json({ success: false, error: 'Missing action parameter' }, { status: 400 });
@@ -47,11 +47,13 @@ export async function POST(request) {
 
       // Clinic-level profile details update
       if (action === 'updateClinicDetails') {
-        const { address, fee, contact } = body;
+        const { name, address, fee, contact, profilePic } = body;
         const clinic = await Clinic.findByIdAndUpdate(clinicId, {
+          name,
           address,
           fee: Number(fee),
-          contact
+          contact,
+          profilePic
         }, { new: true });
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
@@ -151,6 +153,12 @@ export async function POST(request) {
       // Booking status update per Doctor
       if (action === 'updateBookingStatus') {
         const booking = await Booking.findByIdAndUpdate(bookingId, { status }, { new: true });
+        return NextResponse.json({ success: true, data: booking, source: 'database' });
+      }
+
+      // Booking notes update (prescription and clinical notes)
+      if (action === 'updateBookingNotes') {
+        const booking = await Booking.findByIdAndUpdate(bookingId, { prescription, clinicalNotes }, { new: true });
         return NextResponse.json({ success: true, data: booking, source: 'database' });
       }
 

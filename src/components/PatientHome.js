@@ -271,8 +271,12 @@ export default function PatientHome({
               {sortedClinics.map(clinic => (
                 <div key={clinic._id} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
                   <div className="card-row">
-                    <div className="card-icon" style={{ background: clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE' }}>
-                      {clinic.icon || '🏥'}
+                    <div className="card-icon" style={{ background: clinic.profilePic ? 'transparent' : (clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE'), overflow: 'hidden', padding: 0 }}>
+                      {clinic.profilePic ? (
+                        <img src={clinic.profilePic} alt={clinic.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        clinic.icon || '🏥'
+                      )}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div className="card-name">{clinic.name}</div>

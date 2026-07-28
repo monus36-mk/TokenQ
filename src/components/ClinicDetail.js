@@ -77,7 +77,13 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           </span>
         </div>
         <div className="hero-row">
-          <div className="hero-icon">{clinic.icon || '🏥'}</div>
+          <div className="hero-icon" style={{ padding: clinic.profilePic ? 0 : '', overflow: 'hidden' }}>
+            {clinic.profilePic ? (
+              <img src={clinic.profilePic} alt={clinic.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+            ) : (
+              clinic.icon || '🏥'
+            )}
+          </div>
           <div>
             <div className="hero-name">{clinic.name}</div>
             {(() => {
@@ -158,6 +164,17 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                 b.status !== 'cancelled'
               ).length;
 
+              const todayBookingsCount = bookings.filter(b => {
+                if (b.clinicId !== clinic._id || b.doctorName !== doc.name || b.status === 'cancelled') {
+                  return false;
+                }
+                const bDate = new Date(b.createdAt);
+                const today = new Date();
+                return bDate.getDate() === today.getDate() &&
+                       bDate.getMonth() === today.getMonth() &&
+                       bDate.getFullYear() === today.getFullYear();
+              }).length;
+
               return (
                 <div key={idx} className="card" style={{ cursor: 'default', margin: 0, padding: '15px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
@@ -179,6 +196,9 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                         </div>
                         <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(5, 150, 105, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(5, 150, 105, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
                           Consultations: {totalConsultationsCount}
+                        </span>
+                        <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(29, 158, 117, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(29, 158, 117, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
+                          Booked today: {todayBookingsCount}
                         </span>
                       </div>
                       {doc.delayMinutes > 0 && (
@@ -217,18 +237,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
 
         {/* RIGHT COLUMN: QUEUE LIVE STATUS & REVIEWS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="card" style={{ cursor: 'default', margin: 0, padding: '20px' }}>
-            <div className="sec-label" style={{ marginTop: 0 }}>Live Queue Status</div>
-            <div style={{ fontSize: '13px', color: 'var(--text2)', lineHeight: '1.6' }}>
-              <div>• Total patient bookings today: <strong>{booked}</strong></div>
-              <div style={{ marginTop: '4px' }}>• Average wait time: <strong>{dynamicWaitTime}</strong></div>
-              {clinic.delayMinutes > 0 && (
-                <div style={{ color: 'var(--red)', fontWeight: 500, marginTop: '8px' }}>
-                  ⚠️ Doctor delayed by {clinic.delayMinutes} mins. Wait times adjusted.
-                </div>
-              )}
-            </div>
-          </div>
+
 
           <div id="reviews-section" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {/* Write a Review Box at the Top */}

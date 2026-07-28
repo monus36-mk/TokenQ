@@ -11,22 +11,69 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     const message = `Hello ${patientName}, this is ${clinic.name || 'the clinic'}. Your token (${tokenNumber}) is coming up next in the queue. Please reach the consulting room. Thank you!`;
     return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
   };
+
+  const getPrescriptionWhatsAppLink = (phone, patientName, prescription, clinicalNotes) => {
+    if (!phone) return '#';
+    const cleanPhone = phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    
+    let message = `*PRESCRIPTION & MEDICAL FILE*\n`;
+    message += `Clinic: *${clinic.name || 'Clinic'}*\n`;
+    message += `Patient: *${patientName}*\n`;
+    message += `Date: *${new Date().toLocaleDateString('en-IN')}*\n\n`;
+    
+    if (clinicalNotes) {
+      message += `*Diagnosis/Clinical Notes:*\n${clinicalNotes}\n\n`;
+    }
+    
+    if (prescription) {
+      message += `*Rx (Prescription):*\n${prescription}\n\n`;
+    } else {
+      message += `*Rx (Prescription):*\nGeneral Consultation - Follow advice.\n\n`;
+    }
+    
+    message += `Get well soon!`;
+    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+  };
   
   const [selectedClinicId, setSelectedClinicId] = useState(defaultClinicId);
   const [activeTab, setActiveTab] = useState(isClinicAdmin ? 'queue' : 'add-clinic');
   const [viewingPatient, setViewingPatient] = useState(null);
+  
+  const [currentNotes, setCurrentNotes] = useState('');
+  const [currentPrescription, setCurrentPrescription] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
 
+  useEffect(() => {
+    if (viewingPatient) {
+      setCurrentNotes(viewingPatient.clinicalNotes || '');
+      setCurrentPrescription(viewingPatient.prescription || '');
+      setExpandedHistoryId(null);
+    } else {
+      setCurrentNotes('');
+      setCurrentPrescription('');
+      setExpandedHistoryId(null);
+    }
+  }, [viewingPatient]);
+
+  const [editName, setEditName] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editFee, setEditFee] = useState('');
   const [editContact, setEditContact] = useState('');
+  const [editProfilePic, setEditProfilePic] = useState('');
   const [loadedClinicId, setLoadedClinicId] = useState(null);
 
   useEffect(() => {
     const activeClinic = clinics.find(c => c._id === selectedClinicId) || clinics[0];
     if (activeClinic && activeClinic._id !== loadedClinicId) {
+      setEditName(activeClinic.name || '');
       setEditAddress(activeClinic.address || '');
       setEditFee(activeClinic.fee?.toString() || '');
       setEditContact(activeClinic.contact || '');
+      setEditProfilePic(activeClinic.profilePic || '');
       setLoadedClinicId(activeClinic._id);
     }
   }, [selectedClinicId, clinics, loadedClinicId]);
@@ -233,6 +280,44 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     }
   };
 
+  const handleSaveNotes = async (silent = false) => {
+    if (!viewingPatient) return;
+    setIsSavingNotes(true);
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateBookingNotes',
+          clinicId: clinic._id,
+          bookingId: viewingPatient._id,
+          clinicalNotes: currentNotes,
+          prescription: currentPrescription
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (!silent) {
+          setShowSavedFeedback(true);
+          setTimeout(() => setShowSavedFeedback(false), 2500);
+        }
+        // Update local viewingPatient state to reflect changes without having to reopen
+        setViewingPatient(prev => ({
+          ...prev,
+          clinicalNotes: currentNotes,
+          prescription: currentPrescription
+        }));
+        onRefresh();
+      } else {
+        alert('Failed to save notes: ' + json.error);
+      }
+    } catch (err) {
+      alert('Error saving notes: ' + err.message);
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   const handleAddDoctorSubmit = async (e) => {
     e.preventDefault();
     if (!newDoc.name || !newDoc.timings) {
@@ -312,9 +397,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
         body: JSON.stringify({
           action: 'updateClinicDetails',
           clinicId: clinic._id,
+          name: editName,
           address: editAddress,
           fee: Number(editFee),
-          contact: editContact
+          contact: editContact,
+          profilePic: editProfilePic
         })
       });
       const json = await res.json();
@@ -322,9 +409,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
         alert('Clinic details updated successfully!');
         const updatedClinic = json.data;
         if (updatedClinic) {
+          setEditName(updatedClinic.name || '');
           setEditAddress(updatedClinic.address || '');
           setEditFee(updatedClinic.fee?.toString() || '');
           setEditContact(updatedClinic.contact || '');
+          setEditProfilePic(updatedClinic.profilePic || '');
         }
         onRefresh();
       } else {
@@ -462,6 +551,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 onClick={() => setActiveTab('queue')}
               >
                 Live queue ({waiting + serving})
+              </div>
+              <div 
+                className={`atab ${activeTab === 'patients' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('patients')}
+              >
+                Patient History
               </div>
               <div 
                 className={`atab ${activeTab === 'controls' ? 'active' : ''}`} 
@@ -824,6 +919,146 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
             </div>
           )}
 
+          {/* PATIENT HISTORY TAB */}
+          {activeTab === 'patients' && !isProfileIncomplete && (() => {
+            // Get all bookings for the selected clinic
+            const clinicAllBookings = bookings.filter(b => b.clinicId === selectedClinicId);
+            
+            // Group by unique patient (Name + Phone)
+            const uniquePatientsMap = {};
+            clinicAllBookings.forEach(b => {
+              const nameKey = b.patientName ? b.patientName.trim().toLowerCase() : '';
+              const phoneKey = b.patientPhone ? b.patientPhone.trim() : '';
+              const key = `${nameKey}_${phoneKey}`;
+              
+              if (!uniquePatientsMap[key]) {
+                uniquePatientsMap[key] = {
+                  name: b.patientName,
+                  phone: b.patientPhone,
+                  age: b.patientAge,
+                  gender: b.patientGender,
+                  visitsCount: 1,
+                  lastVisited: b.createdAt,
+                  latestBooking: b
+                };
+              } else {
+                uniquePatientsMap[key].visitsCount += 1;
+                // Keep the most recent lastVisited date
+                if (new Date(b.createdAt) > new Date(uniquePatientsMap[key].lastVisited)) {
+                  uniquePatientsMap[key].lastVisited = b.createdAt;
+                  uniquePatientsMap[key].age = b.patientAge; 
+                  uniquePatientsMap[key].gender = b.patientGender;
+                  uniquePatientsMap[key].latestBooking = b;
+                }
+              }
+            });
+
+            const uniquePatientsList = Object.values(uniquePatientsMap).sort((a, b) => new Date(b.lastVisited) - new Date(a.lastVisited));
+
+            const filteredPatients = uniquePatientsList.filter(p => 
+              (p.name && p.name.toLowerCase().includes(patientSearchQuery.toLowerCase())) ||
+              (p.phone && p.phone.includes(patientSearchQuery))
+            );
+
+            return (
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
+                    🔍 Search Patient Directory
+                  </div>
+                  <input
+                    type="text"
+                    className="fi-input"
+                    placeholder="Search by patient name or phone number..."
+                    value={patientSearchQuery}
+                    onChange={(e) => setPatientSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border2)',
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div className="sec-label">
+                  All Registered Patients ({filteredPatients.length})
+                </div>
+
+                {filteredPatients.length === 0 ? (
+                  <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px' }}>
+                    {patientSearchQuery ? 'No matching patients found.' : 'No patient records found for this clinic.'}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {filteredPatients.map((patient, idx) => {
+                      const lastVisitDate = new Date(patient.lastVisited).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      });
+
+                      return (
+                        <div 
+                          key={idx}
+                          style={{
+                            background: 'var(--surface2)',
+                            borderRadius: '8px',
+                            border: '1.5px solid var(--border)',
+                            padding: '12px 16px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                          className="history-item-card"
+                        >
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                              {patient.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '3px' }}>
+                              {patient.age} yrs · {patient.gender === 'M' ? 'Male' : patient.gender === 'F' ? 'Female' : 'Other'} · 📞 {patient.phone}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '4px' }}>
+                              Last Visit: <strong>{lastVisitDate}</strong> · Total Visits: <strong>{patient.visitsCount}</strong>
+                            </div>
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              // Set viewingPatient to the latest booking of this patient
+                              setViewingPatient(patient.latestBooking);
+                            }}
+                            style={{
+                              background: 'var(--green-light)',
+                              color: 'var(--green-dark)',
+                              border: '1.5px solid var(--green)',
+                              borderRadius: '6px',
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            📄 Open File
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* CONTROLS TAB */}
           {activeTab === 'controls' && !isProfileIncomplete && (
             <div>
@@ -884,6 +1119,80 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
               <div className="sec-label">📍 Update Clinic Details</div>
               <form onSubmit={handleUpdateClinicProfile} className="ctrl-card" style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px', background: 'var(--surface2)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ 
+                    width: '60px', 
+                    height: '60px', 
+                    borderRadius: '8px', 
+                    background: 'var(--border2)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '28px',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    border: '1.5px solid var(--border)'
+                  }}>
+                    {editProfilePic ? (
+                      <img src={editProfilePic} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      clinic.icon || '🏥'
+                    )}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', fontWeight: 600 }}>Clinic Profile Photo</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          if (file.size > 800 * 1024) { 
+                            alert("Image size should be less than 800KB.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setEditProfilePic(reader.result);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ fontSize: '12px', color: 'var(--text2)' }}
+                    />
+                    {editProfilePic && (
+                      <button 
+                        type="button" 
+                        onClick={() => setEditProfilePic('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--red)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          padding: 0,
+                          width: 'fit-content'
+                        }}
+                      >
+                        🗑️ Remove Photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="fg" style={{ margin: 0 }}>
+                  <label className="fl">Clinic Name</label>
+                  <input 
+                    type="text" 
+                    className="fi-input" 
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required 
+                  />
+                </div>
+
                 <div className="fg" style={{ margin: 0 }}>
                   <label className="fl">Clinic Address</label>
                   <input 
@@ -1430,6 +1739,284 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   </div>
                 </div>
               )}
+
+              {/* Doctor's EMR Notes & Prescription Editor */}
+              <div style={{ 
+                border: '1.5px solid var(--green-mid)', 
+                background: 'rgba(29, 158, 117, 0.02)',
+                borderRadius: '8px', 
+                padding: '14px',
+                marginTop: '6px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '16px' }}>🩺</span>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--green-dark)' }}>
+                    Doctor's Clinical Entry (EMR)
+                  </h4>
+                </div>
+
+                <div className="fg" style={{ margin: 0 }}>
+                  <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', fontWeight: 600 }}>Clinical Notes & Diagnosis</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter examination findings, symptoms, diagnosis (e.g. BP: 130/85, Clear lungs, viral fever)"
+                    value={currentNotes}
+                    onChange={(e) => setCurrentNotes(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      border: '1.5px solid var(--border2)',
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      fontFamily: 'inherit',
+                      fontSize: '13px',
+                      resize: 'vertical',
+                      outline: 'none',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+
+                <div className="fg" style={{ margin: 0 }}>
+                  <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', fontWeight: 600 }}>Prescription & Treatment Plan</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter prescribed medicines & instructions (e.g. Paracetamol 650mg TDS x 3 days)"
+                    value={currentPrescription}
+                    onChange={(e) => setCurrentPrescription(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      border: '1.5px solid var(--border2)',
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      fontFamily: 'inherit',
+                      fontSize: '13px',
+                      resize: 'vertical',
+                      outline: 'none',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '12px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => handleSaveNotes(false)}
+                    disabled={isSavingNotes}
+                    style={{
+                      background: 'var(--green-dark)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                      opacity: isSavingNotes ? 0.7 : 1
+                    }}
+                  >
+                    {isSavingNotes ? 'Saving Notes...' : 'Save Clinical Record ✓'}
+                  </button>
+
+                  {viewingPatient.patientPhone && (
+                    <a
+                      href={getPrescriptionWhatsAppLink(
+                        viewingPatient.patientPhone, 
+                        viewingPatient.patientName, 
+                        currentPrescription,
+                        currentNotes
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        handleSaveNotes(true);
+                      }}
+                      style={{
+                        background: '#25D366',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      💬 Send to WhatsApp
+                    </a>
+                  )}
+
+                  {showSavedFeedback && (
+                    <span style={{ 
+                      color: 'var(--green-dark)', 
+                      fontSize: '12px', 
+                      fontWeight: 600,
+                      marginLeft: '4px'
+                    }}>
+                      Saved successfully ✓
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Patient Visit History Section */}
+              {(() => {
+                const patientHistory = bookings.filter(b => 
+                  b.clinicId === viewingPatient.clinicId &&
+                  b.patientPhone === viewingPatient.patientPhone &&
+                  b.patientName?.trim().toLowerCase() === viewingPatient.patientName?.trim().toLowerCase() &&
+                  b._id !== viewingPatient._id
+                );
+
+                return (
+                  <div style={{ marginTop: '10px', borderTop: '1.5px dashed var(--border2)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '16px' }}>📜</span>
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                        Patient Visit History ({patientHistory.length})
+                      </h4>
+                    </div>
+
+                    {patientHistory.length === 0 ? (
+                      <div style={{ 
+                        padding: '16px', 
+                        textAlign: 'center', 
+                        background: 'var(--surface2)', 
+                        borderRadius: '8px', 
+                        color: 'var(--text2)', 
+                        fontSize: '12px',
+                        border: '1px solid var(--border)'
+                      }}>
+                        First-time visitor. No past booking records found.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {patientHistory.map((historyItem) => {
+                          const isExpanded = expandedHistoryId === historyItem._id;
+                          const dateStr = new Date(historyItem.createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          });
+                          
+                          return (
+                            <div 
+                              key={historyItem._id}
+                              className="history-item-card"
+                              style={{
+                                background: 'var(--surface2)',
+                                borderRadius: '8px',
+                                border: '1.5px solid ' + (historyItem.status === 'done' ? 'rgba(29, 158, 117, 0.15)' : 'var(--border)'),
+                                overflow: 'hidden',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {/* Header (Toggle Details) */}
+                              <div 
+                                onClick={() => setExpandedHistoryId(isExpanded ? null : historyItem._id)}
+                                style={{
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  background: isExpanded ? 'rgba(0,0,0,0.02)' : 'transparent',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+                                    {dateStr}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '2px' }}>
+                                    Dr. {historyItem.doctorName} · Token {historyItem.tokenNumber}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span className={`pill ${
+                                    historyItem.status === 'done' ? 'pg' : 
+                                    historyItem.status === 'cancelled' ? 'pr' : 'pa'
+                                  }`} style={{ fontSize: '10px', padding: '2px 8px' }}>
+                                    {historyItem.status}
+                                  </span>
+                                  <span style={{ fontSize: '12px', color: 'var(--text2)' }}>
+                                    {isExpanded ? '▲' : '▼'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Details */}
+                              {isExpanded && (
+                                <div 
+                                  className="history-details-container"
+                                  style={{ 
+                                    padding: '12px', 
+                                    borderTop: '1px solid var(--border)', 
+                                    background: 'var(--surface)',
+                                    fontSize: '12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px'
+                                  }}
+                                >
+                                  <div>
+                                    <strong style={{ color: 'var(--text2)' }}>Chief Complaints:</strong>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                      {historyItem.complaints && historyItem.complaints.length > 0 ? (
+                                        historyItem.complaints.map(c => (
+                                          <span key={c} style={{ background: 'var(--green-light)', color: 'var(--green-dark)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
+                                            {c}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span style={{ color: 'var(--text2)' }}>General Consultation</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {historyItem.describeComplaint && (
+                                    <div>
+                                      <strong style={{ color: 'var(--text2)' }}>Description:</strong>
+                                      <div style={{ marginTop: '2px', color: 'var(--text)', fontStyle: 'italic' }}>
+                                        "{historyItem.describeComplaint}"
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '4px' }}>
+                                    <div style={{ background: 'var(--surface2)', padding: '8px', borderRadius: '4px' }}>
+                                      <strong style={{ color: 'var(--text2)', display: 'block', marginBottom: '3px' }}>Clinical Notes:</strong>
+                                      <span style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                                        {historyItem.clinicalNotes || 'No notes recorded.'}
+                                      </span>
+                                    </div>
+                                    <div style={{ background: 'var(--surface2)', padding: '8px', borderRadius: '4px' }}>
+                                      <strong style={{ color: 'var(--text2)', display: 'block', marginBottom: '3px' }}>Prescription:</strong>
+                                      <span style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                                        {historyItem.prescription || 'No medicines prescribed.'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Actions */}
