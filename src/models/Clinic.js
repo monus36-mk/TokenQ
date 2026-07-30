@@ -94,6 +94,7 @@ const ClinicSchema = new mongoose.Schema({
     userName: { type: String, required: true },
     rating: { type: Number, required: true },
     comment: { type: String, required: true },
+    doctorName: { type: String, required: false },
     createdAt: { type: Date, default: Date.now }
   }]
 });

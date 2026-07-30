@@ -94,12 +94,12 @@ export async function POST(request) {
       }
 
       const mailOptions = {
-        from: fromEmail,
+        from: `TokenQ <${fromEmail}>`,
         to: emailLower,
         subject: 'TokenQ - Reset your Password',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <h2 style="color: #10B981; text-align: center; margin-bottom: 24px;">🏥 TokenQ Password Reset</h2>
+            <h2 style="color: #10B981; text-align: center; margin-bottom: 24px;">TokenQ Password Reset</h2>
             <p style="font-size: 16px; color: #475569;">Hello,</p>
             <p style="font-size: 15px; color: #475569; line-height: 1.5;">We received a request to reset the password for your TokenQ account. Please use the following 4-digit code to reset your password:</p>
             <div style="background: #f1f5f9; padding: 15px; text-align: center; border-radius: 6px; margin: 24px 0;">

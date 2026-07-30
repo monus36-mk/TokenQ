@@ -19,50 +19,25 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
     b.status !== 'cancelled' &&
     new Date(b.createdAt).toDateString() === new Date().toDateString()
   ).length;
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [selectedDocFilter, setSelectedDocFilter] = useState(null);
 
   // Dynamic wait time based on actual waiting queue length
   const dynamicWaitTime = waitingCount > 0 ? `~${(waitingCount * 10) + (clinic.delayMinutes || 0)}m` : 'Ready / No wait';
 
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    if (!comment.trim()) return alert('Please enter a comment.');
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/clinics', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'addReview',
-          clinicId: clinic._id,
-          review: {
-            userName: currentUser?.name || 'Anonymous Patient',
-            rating,
-            comment
-          }
-        })
-      });
-      const json = await res.json();
-      if (json.success) {
-        onReviewAdded(json.data);
-        setComment('');
-        setRating(5);
-        alert('Thank you! Review added successfully.');
-      } else {
-        alert('Failed to submit review: ' + json.error);
-      }
-    } catch (err) {
-      alert('Error submitting review: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const clinicDoctors = clinic.doctors && clinic.doctors.length > 0
+    ? clinic.doctors
+    : (clinic.doctorName ? [{ name: clinic.doctorName, specialty: clinic.specialty, timings: clinic.timings, session: 'Morning', isUnavailable: false, isPaused: false }] : []);
+
+  const totalDoctorsCount = clinicDoctors.length;
+  const activeDoctorsCount = clinicDoctors.filter(d => !d.isUnavailable && !d.isPaused).length;
 
   const reviews = clinic.reviews || [];
-  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2);
+  const filteredReviews = selectedDocFilter
+    ? reviews.filter(r => r.doctorName === selectedDocFilter)
+    : reviews;
+  const visibleReviews = showAllReviews ? filteredReviews : filteredReviews.slice(0, 2);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '20px', overflowY: 'auto', maxHeight: '100vh' }}>
@@ -113,9 +88,9 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           </div>
           <div className="stat-box">
             <div className="stat-num" style={{ color: '#FBBF24' }}>
-              {clinic.isUnavailable ? '-' : dynamicWaitTime}
+              {clinic.isUnavailable ? '-' : `${activeDoctorsCount} / ${totalDoctorsCount}`}
             </div>
-            <div className="stat-lbl">Est. wait</div>
+            <div className="stat-lbl">Active Doctors</div>
           </div>
         </div>
       </div>
@@ -145,10 +120,6 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           <div className="sec-label" style={{ margin: '8px 0 0' }}>👨‍⚕️ Choose Doctor to Book Token</div>
           
           {(() => {
-            const clinicDoctors = clinic.doctors && clinic.doctors.length > 0
-              ? clinic.doctors
-              : (clinic.doctorName ? [{ name: clinic.doctorName, specialty: clinic.specialty, timings: clinic.timings, session: 'Morning', isUnavailable: false, isPaused: false }] : []);
-            
             if (clinicDoctors.length === 0) {
               return (
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text3)', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
@@ -175,11 +146,57 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                        bDate.getFullYear() === today.getFullYear();
               }).length;
 
+              const docWaitingCount = bookings.filter(b => {
+                if (b.clinicId !== clinic._id || b.doctorName !== doc.name || b.status !== 'waiting') {
+                  return false;
+                }
+                const bDate = new Date(b.createdAt);
+                const today = new Date();
+                return bDate.getDate() === today.getDate() &&
+                       bDate.getMonth() === today.getMonth() &&
+                       bDate.getFullYear() === today.getFullYear();
+              }).length;
+
+              const docWaitTime = docWaitingCount > 0 
+                ? `~${(docWaitingCount * 10) + (doc.delayMinutes || 0)}m` 
+                : 'Ready / No wait';
+
+              const docReviews = reviews.filter(r => r.doctorName === doc.name);
+              const docRatingCount = docReviews.length;
+              const docRating = docRatingCount > 0 
+                ? (docReviews.reduce((sum, r) => sum + r.rating, 0) / docRatingCount).toFixed(1) 
+                : null;
+
               return (
                 <div key={idx} className="card" style={{ cursor: 'default', margin: 0, padding: '15px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{doc.name}</div>
+                      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{doc.name}</span>
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDocFilter(doc.name);
+                            document.getElementById('reviews-section').scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          style={{ 
+                            fontSize: '11px', 
+                            color: docRatingCount > 0 ? 'var(--green-dark)' : 'var(--text3)', 
+                            fontWeight: 600, 
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            background: docRatingCount > 0 ? 'rgba(5, 150, 105, 0.08)' : 'var(--surface2)',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            border: docRatingCount > 0 ? '1px solid rgba(5, 150, 105, 0.15)' : '1px solid var(--border)'
+                          }}
+                          title={docRatingCount > 0 ? "Click to view reviews for this doctor" : "No reviews for this doctor yet"}
+                        >
+                          ⭐ {docRatingCount > 0 ? `${docRating} (${docRatingCount})` : 'New'}
+                        </span>
+                      </div>
                       {(doc.qualification || doc.experience) && (
                         <div style={{ fontSize: '12px', color: 'var(--text2)', margin: '2px 0' }}>
                           {doc.qualification && `🎓 ${doc.qualification}`}
@@ -199,6 +216,16 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                         </span>
                         <span className="pill pg" style={{ fontSize: '10px', background: 'rgba(29, 158, 117, 0.08)', color: 'var(--green-dark)', border: '1px solid rgba(29, 158, 117, 0.15)', padding: '2px 6px', borderRadius: '10px' }}>
                           Booked today: {todayBookingsCount}
+                        </span>
+                        <span className="pill" style={{ 
+                          fontSize: '10px', 
+                          background: docWaitingCount > 0 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(5, 150, 105, 0.08)', 
+                          color: docWaitingCount > 0 ? '#D97706' : 'var(--green-dark)', 
+                          border: docWaitingCount > 0 ? '1px solid rgba(245, 158, 11, 0.15)' : '1px solid rgba(5, 150, 105, 0.15)', 
+                          padding: '2px 6px', 
+                          borderRadius: '10px' 
+                        }}>
+                          Est. wait: {docWaitTime}
                         </span>
                       </div>
                       {doc.delayMinutes > 0 && (
@@ -240,57 +267,31 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
 
 
           <div id="reviews-section" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Write a Review Box at the Top */}
-            <div className="card" style={{ cursor: 'default', margin: 0, padding: '16px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '12px' }}>Write a Review</div>
-              <form onSubmit={handleSubmitReview}>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <span 
-                        key={star} 
-                        onClick={() => setRating(star)} 
-                        style={{ cursor: 'pointer', fontSize: '26px', color: star <= rating ? '#F59E0B' : '#D1D5DB', transition: 'color 0.15s', lineHeight: '1' }}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ marginBottom: '12px' }}>
-                  <textarea 
-                    placeholder="Share your clinic visit experience..." 
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    required
-                    style={{
-                      width: '100%',
-                      minHeight: '60px',
-                      padding: '10px',
-                      background: 'var(--surface2)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: 'var(--text)',
-                      resize: 'vertical',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="btn-p" 
-                  disabled={submitting} 
-                  style={{ padding: '8px 16px', fontSize: '13px', width: 'auto', margin: 0 }}
-                >
-                  {submitting ? 'Submitting...' : 'Submit Review'}
-                </button>
-              </form>
-            </div>
 
-            <div className="sec-label" style={{ margin: '8px 0 4px' }}>Patient Reviews ({reviews.length})</div>
+
+            <div className="sec-label" style={{ margin: '8px 0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Patient Reviews ({filteredReviews.length})</span>
+              {selectedDocFilter && (
+                <button 
+                  onClick={() => setSelectedDocFilter(null)}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    color: 'var(--red)',
+                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Clear filter ({selectedDocFilter}) ✕
+                </button>
+              )}
+            </div>
             
-            {reviews.length > 0 ? (
+            {filteredReviews.length > 0 ? (
               <>
                 {visibleReviews.map((rev, rIdx) => (
                   <div key={rIdx} className="card" style={{ cursor: 'default', margin: 0, padding: '14px 16px' }}>
@@ -306,7 +307,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                     <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{rev.comment}</div>
                   </div>
                 ))}
-                {!showAllReviews && reviews.length > 2 && (
+                {!showAllReviews && filteredReviews.length > 2 && (
                   <button 
                     onClick={() => setShowAllReviews(true)}
                     style={{
@@ -321,7 +322,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                       marginTop: '4px'
                     }}
                   >
-                    Show more reviews ({reviews.length - 2})
+                    Show more reviews ({filteredReviews.length - 2})
                   </button>
                 )}
               </>

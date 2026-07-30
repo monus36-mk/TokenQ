@@ -277,7 +277,8 @@ export default function Home() {
           review: {
             userName: selectedToken.patientName || currentUser?.name || 'Anonymous Patient',
             rating: activeRating,
-            comment: activeComment.trim() || 'Consultation completed successfully!'
+            comment: activeComment.trim() || 'Consultation completed successfully!',
+            doctorName: selectedToken.doctorName
           }
         })
       });

@@ -138,6 +138,7 @@ export async function PUT(request) {
         userName: review.userName,
         rating: Number(review.rating),
         comment: review.comment,
+        doctorName: review.doctorName,
         createdAt: new Date()
       });
 
