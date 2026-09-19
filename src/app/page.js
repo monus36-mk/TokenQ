@@ -23,6 +23,7 @@ export default function Home() {
   const [activeComment, setActiveComment] = useState('');
   const [isRatingSubmitted, setIsRatingSubmitted] = useState(false);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
+  const [expandedPastTokenId, setExpandedPastTokenId] = useState(null);
 
   useEffect(() => {
     setIsRatingSubmitted(false);
@@ -46,8 +47,8 @@ export default function Home() {
   useEffect(() => {
     // Force unregister any old Service Workers causing ChunkLoadError
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
           registration.unregister();
           console.log('Unregistered broken service worker');
         }
@@ -301,9 +302,14 @@ export default function Home() {
   // Filter bookings for the active patient
   const userBookings = bookings.filter(b => {
     if (b.userId && currentUser?._id) {
-      return b.userId === currentUser._id;
+      if (String(b.userId) === String(currentUser._id)) return true;
     }
-    return b.patientPhone === userPhone;
+    const cleanPatientPhone = (b.patientPhone || '').replace(/\D/g, '').slice(-10);
+    const cleanUserPhone = (userPhone || currentUser?.phone || '').replace(/\D/g, '').slice(-10);
+    if (cleanPatientPhone && cleanUserPhone && cleanPatientPhone === cleanUserPhone) {
+      return true;
+    }
+    return false;
   });
 
   const handleLoginSuccess = (user) => {
@@ -317,7 +323,7 @@ export default function Home() {
     setUserPhone(user.phone || '');
     setUserName(user.name);
     localStorage.setItem('tokenq_user', JSON.stringify(user));
-    
+
     if (user.role !== 'admin' && user.role !== 'clinic-admin') {
       if (selectedClinic && selectedDoctor) {
         setPatientScreen('book');
@@ -423,492 +429,715 @@ export default function Home() {
       ) : viewMode === 'patient' ? (
         /* ===== PATIENT WORKFLOW ===== */
         <div className="patient-layout-wrap">
-            <>
-              {/* Screen 1: Home List */}
-              {patientScreen === 'home' && (
-                <PatientHome 
-                  clinics={clinics}
-                  userBookings={userBookings}
-                  onSelectClinic={handleSelectClinic}
-                  onSelectToken={handleSelectToken}
-                  onNavigate={handleNavigate}
-                  searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
-                  currentUser={currentUser}
-                />
-              )}
+          <>
+            {/* Screen 1: Home List */}
+            {patientScreen === 'home' && (
+              <PatientHome
+                clinics={clinics}
+                userBookings={userBookings}
+                onSelectClinic={handleSelectClinic}
+                onSelectToken={handleSelectToken}
+                onNavigate={handleNavigate}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                currentUser={currentUser}
+              />
+            )}
 
-              {/* Screen 2: Clinic Detail */}
-              {patientScreen === 'detail' && selectedClinic && (
-                <ClinicDetail 
-                  clinic={selectedClinic}
-                  bookings={bookings}
-                  waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
-                  onBack={handleBackToHome}
-                  onStartBooking={handleStartBooking}
-                  onRequireAuth={handleRequireAuth}
-                  currentUser={currentUser}
-                  onReviewAdded={(updatedClinic) => {
-                    setClinics(prev => prev.map(c => c._id === updatedClinic._id ? updatedClinic : c));
-                    setSelectedClinic(updatedClinic);
-                  }}
-                />
-              )}
+            {/* Screen 2: Clinic Detail */}
+            {patientScreen === 'detail' && selectedClinic && (
+              <ClinicDetail
+                clinic={selectedClinic}
+                bookings={bookings}
+                waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
+                onBack={handleBackToHome}
+                onStartBooking={handleStartBooking}
+                onRequireAuth={handleRequireAuth}
+                currentUser={currentUser}
+                onReviewAdded={(updatedClinic) => {
+                  setClinics(prev => prev.map(c => c._id === updatedClinic._id ? updatedClinic : c));
+                  setSelectedClinic(updatedClinic);
+                }}
+              />
+            )}
 
-              {/* Screen 3: Booking Flow */}
-              {patientScreen === 'book' && selectedClinic && (
-                <BookingFlow 
-                  clinic={selectedClinic}
-                  doctor={selectedDoctor}
-                  onBack={() => setPatientScreen('detail')}
-                  onBookingComplete={handleBookingComplete}
-                  currentUser={currentUser}
-                />
-              )}
+            {/* Screen 3: Booking Flow */}
+            {patientScreen === 'book' && selectedClinic && (
+              <BookingFlow
+                clinic={selectedClinic}
+                doctor={selectedDoctor}
+                onBack={() => setPatientScreen('detail')}
+                onBookingComplete={handleBookingComplete}
+                currentUser={currentUser}
+              />
+            )}
 
-              {/* Screen 4: Live Tracker */}
-              {patientScreen === 'token' && selectedToken && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
-                  <div className="topbar">
-                    <div className="back-btn" onClick={handleBackToHome}>←</div>
-                    <div className="topbar-title">Live tracker</div>
-                    <div className="pill pg" style={{ fontSize: '11px' }}>🏥 Clinic</div>
-                  </div>
-                  {(() => {
-                    const clinic = clinics.find(c => c._id === selectedToken.clinicId) || {};
-                    const doctorBookings = bookings.filter(b => b.clinicId === selectedToken.clinicId && b.doctorName === selectedToken.doctorName);
-                    const servingBooking = doctorBookings.find(b => b.status === 'serving');
-                    const nowServingToken = servingBooking ? servingBooking.tokenNumber : 'None';
-                    const activeBefore = doctorBookings.filter(b => 
-                      (b.status === 'waiting' || b.status === 'serving') && 
-                      new Date(b.createdAt) < new Date(selectedToken.createdAt)
-                    );
-                    const waitingAhead = selectedToken.status === 'serving' 
-                      ? 0 
-                      : activeBefore.length;
-                    const selectedDocInfo = clinic.doctors?.find(d => d.name === selectedToken.doctorName);
-                    const docDelay = selectedDocInfo?.delayMinutes || 0;
-                    
-                    const estWaitMin = selectedToken.status === 'serving' 
-                      ? 0 
-                      : (waitingAhead * 10) + docDelay;
+            {/* Screen 4: Live Tracker */}
+            {patientScreen === 'token' && selectedToken && (
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
+                <div className="topbar">
+                  <div className="back-btn" onClick={handleBackToHome}>←</div>
+                  <div className="topbar-title">Live tracker</div>
+                  <div className="pill pg" style={{ fontSize: '11px' }}>🏥 Clinic</div>
+                </div>
+                {(() => {
+                  const clinic = clinics.find(c => c._id === selectedToken.clinicId) || {};
+                  const doctorBookings = bookings.filter(b => b.clinicId === selectedToken.clinicId && b.doctorName === selectedToken.doctorName);
+                  const servingBooking = doctorBookings.find(b => b.status === 'serving');
+                  const nowServingToken = servingBooking ? servingBooking.tokenNumber : 'None';
+                  const activeBefore = doctorBookings.filter(b =>
+                    (b.status === 'waiting' || b.status === 'serving') &&
+                    new Date(b.createdAt) < new Date(selectedToken.createdAt)
+                  );
+                  const waitingAhead = selectedToken.status === 'serving'
+                    ? 0
+                    : activeBefore.length;
+                  const selectedDocInfo = clinic.doctors?.find(d => d.name === selectedToken.doctorName);
+                  const docDelay = selectedDocInfo?.delayMinutes || 0;
 
-                    return (
-                      <>
-                        <div className="token-hero">
-                          <div className="token-lbl">Your token ({selectedToken.doctorName})</div>
-                          <div className="token-num" style={{ color: 'var(--green-mid)' }}>
-                            {selectedToken.tokenNumber}
-                          </div>
-                          <div className="token-clinic">
-                            {clinic.name} · {selectedToken.slot}
-                          </div>
-                          <div style={{ marginTop: '12px' }}>
-                            <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.85)' }}>
-                              💵 Fee: ₹{clinic.fee || 100} (Pay at Clinic)
-                            </span>
-                          </div>
+                  const estWaitMin = selectedToken.status === 'serving'
+                    ? 0
+                    : (waitingAhead * 10) + docDelay;
+
+                  return (
+                    <>
+                      <div className="token-hero">
+                        <div className="token-lbl">Your token ({selectedToken.doctorName})</div>
+                        <div className="token-num" style={{ color: 'var(--green-mid)' }}>
+                          {selectedToken.tokenNumber}
                         </div>
+                        <div className="token-clinic">
+                          {clinic.name} · {selectedToken.slot}
+                        </div>
+                        <div style={{ marginTop: '12px' }}>
+                          <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.85)' }}>
+                            💵 Fee: ₹{clinic.fee || 100} (Pay at Clinic)
+                          </span>
+                        </div>
+                      </div>
 
-                        <div className="scrollable">
-                          <div className="pad">
-                            <div className="sec-label">Live queue tracker</div>
-                            <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '12px' }}>
-                              • Total patient bookings today: <strong>{clinic.bookedCount || 0}</strong>
+                      <div className="scrollable">
+                        <div className="pad">
+                          <div className="sec-label">Live queue tracker</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '12px' }}>
+                            • Total patient bookings today: <strong>{clinic.bookedCount || 0}</strong>
+                          </div>
+                          <div className="qtracker">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '7px' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Now serving</span>
+                              <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Your token</span>
                             </div>
-                            <div className="qtracker">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '7px' }}>
-                                <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Now serving</span>
-                                <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Your token</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
-                                <span className="qt-lbl" style={{ color: 'var(--green-dark)' }}>{nowServingToken}</span>
-                                <div style={{ flex: 1, height: '2px', background: 'var(--border2)', margin: '0 12px' }}></div>
-                                <span className="qt-lbl" style={{ color: 'var(--amber)' }}>{selectedToken.tokenNumber}</span>
-                              </div>
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
-                                    {selectedToken.status === 'done' || selectedToken.status === 'cancelled' ? '—' : waitingAhead}
-                                  </div>
-                                  <div style={{ fontSize: '11px', color: 'var(--text2)' }}>ahead</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
+                              <span className="qt-lbl" style={{ color: 'var(--green-dark)' }}>{nowServingToken}</span>
+                              <div style={{ flex: 1, height: '2px', background: 'var(--border2)', margin: '0 12px' }}></div>
+                              <span className="qt-lbl" style={{ color: 'var(--amber)' }}>{selectedToken.tokenNumber}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
+                                  {selectedToken.status === 'done' || selectedToken.status === 'cancelled' ? '—' : waitingAhead}
                                 </div>
-                                <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: '17px', fontWeight: 600, color: selectedToken.status === 'done' ? 'var(--green)' : selectedToken.status === 'cancelled' ? 'var(--red)' : 'var(--amber)' }}>
-                                    {selectedToken.status === 'done' ? 'Completed' : selectedToken.status === 'cancelled' ? 'Cancelled' : selectedToken.status === 'serving' ? 'Serving' : estWaitMin === 0 ? 'Ready' : `~${estWaitMin}m`}
-                                  </div>
-                                  <div style={{ fontSize: '11px', color: 'var(--text2)' }}>est. wait</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text2)' }}>ahead</div>
+                              </div>
+                              <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: '9px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '17px', fontWeight: 600, color: selectedToken.status === 'done' ? 'var(--green)' : selectedToken.status === 'cancelled' ? 'var(--red)' : 'var(--amber)' }}>
+                                  {selectedToken.status === 'done' ? 'Completed' : selectedToken.status === 'cancelled' ? 'Cancelled' : selectedToken.status === 'serving' ? 'Serving' : estWaitMin === 0 ? 'Ready' : `~${estWaitMin}m`}
                                 </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text2)' }}>est. wait</div>
                               </div>
                             </div>
- 
-                            {selectedToken.status === 'done' ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <div className="alert alert-g" style={{ borderLeft: '4px solid var(--green)' }}>
-                                  <span style={{ fontSize: '18px' }}>✅</span>
-                                  <div className="alert-txt">
-                                    <strong>Consultation Completed!</strong>
-                                    Thank you for visiting. Please collect your prescription from the doctor.
-                                  </div>
+                          </div>
+
+                          {selectedToken.status === 'done' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              <div className="alert alert-g" style={{ borderLeft: '4px solid var(--green)' }}>
+                                <span style={{ fontSize: '18px' }}>✅</span>
+                                <div className="alert-txt">
+                                  <strong>Consultation Completed!</strong>
+                                  Thank you for visiting. Please review your doctor's digital prescription and advice below.
                                 </div>
+                              </div>
 
-                                {/* Instant Feedback Rating Interface */}
-                                {!isRatingSubmitted ? (
-                                  <div style={{ 
-                                    background: 'var(--surface2)', 
-                                    borderRadius: 'var(--radius)', 
-                                    padding: '16px',
-                                    border: '1.5px solid var(--border)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '12px'
-                                  }}>
-                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-                                      ⭐ Rate your consultation experience
+                              {/* Doctor's Digital Prescription & Clinical Record Card */}
+                              {(selectedToken.clinicalNotes || selectedToken.prescription) && (
+                                <div style={{
+                                  background: 'var(--surface)',
+                                  borderRadius: 'var(--radius)',
+                                  border: '1.5px solid var(--green)',
+                                  padding: '16px',
+                                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.08)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '12px',
+                                  marginTop: '2px'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border2)', paddingBottom: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ fontSize: '20px' }}>🩺</span>
+                                      <div>
+                                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Doctor's Prescription & Clinical Record</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Dr. {selectedToken.doctorName} · {clinic.name || 'Clinic'}</div>
+                                      </div>
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '-6px' }}>
-                                      Help others find the best care at this clinic
+                                    <span className="pill pg" style={{ fontSize: '11px' }}>Rx Verified</span>
+                                  </div>
+
+                                  {selectedToken.clinicalNotes && (
+                                    <div style={{ background: 'var(--surface2)', padding: '10px 12px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                                        📋 Diagnosis & Clinical Notes
+                                      </div>
+                                      <div style={{ fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                                        {selectedToken.clinicalNotes}
+                                      </div>
                                     </div>
+                                  )}
 
-                                    {/* Star selectors */}
-                                    <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
-                                      {[1, 2, 3, 4, 5].map(star => (
-                                        <span 
-                                          key={star}
-                                          onClick={() => setActiveRating(star)} 
-                                          style={{ 
-                                            fontSize: '28px', 
-                                            cursor: 'pointer', 
-                                            opacity: star <= activeRating ? '1' : '.3',
-                                            transition: 'opacity 0.15s'
-                                          }}
-                                        >
-                                          ⭐
-                                        </span>
-                                      ))}
+                                  {selectedToken.prescription && (
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '10px 12px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--green-dark)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                                        💊 Prescribed Medicines & Instructions (Rx)
+                                      </div>
+                                      <div style={{ fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5', fontWeight: 500 }}>
+                                        {selectedToken.prescription}
+                                      </div>
                                     </div>
+                                  )}
 
-                                    {/* Comment input */}
-                                    <input
-                                      type="text"
-                                      placeholder="Write a brief comment (optional)..."
-                                      value={activeComment}
-                                      onChange={(e) => setActiveComment(e.target.value)}
-                                      style={{
-                                        width: '100%',
-                                        padding: '9px 12px',
-                                        borderRadius: '6px',
-                                        border: '1px solid var(--border2)',
-                                        background: 'var(--surface)',
-                                        fontSize: '12px',
-                                        fontFamily: 'inherit',
-                                        outline: 'none'
-                                      }}
-                                    />
-
-                                    {/* Submit button */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', fontSize: '11px', color: 'var(--text3)' }}>
+                                    <span>Date: {new Date(selectedToken.createdAt || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                                     <button
                                       type="button"
-                                      onClick={handleLiveTrackerSubmitReview}
-                                      disabled={isRatingSubmitting}
+                                      onClick={() => window.print()}
                                       style={{
-                                        background: 'var(--green)',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        padding: '9px 16px',
-                                        fontSize: '12px',
+                                        background: 'var(--green-light)',
+                                        color: 'var(--green-dark)',
+                                        border: '1px solid var(--green)',
+                                        padding: '4px 10px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
                                         fontWeight: 600,
-                                        cursor: 'pointer',
-                                        alignSelf: 'flex-start',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                        opacity: isRatingSubmitting ? 0.7 : 1
+                                        cursor: 'pointer'
                                       }}
                                     >
-                                      {isRatingSubmitting ? 'Submitting...' : 'Submit Feedback ✓'}
+                                      🖨️ Print / Save Rx
                                     </button>
                                   </div>
-                                ) : (
-                                  <div style={{ 
-                                    background: 'rgba(5, 150, 105, 0.05)', 
-                                    borderRadius: 'var(--radius)', 
-                                    padding: '16px',
-                                    border: '1.5px solid var(--green)',
-                                    textAlign: 'center',
-                                    color: 'var(--green-dark)',
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    animation: 'fadeIn 0.3s ease'
-                                  }}>
-                                    ❤️ Thank you! Your rating of {activeRating} ⭐ has been shared.
+                                </div>
+                              )}
+
+                              {/* Instant Feedback Rating Interface */}
+                              {!isRatingSubmitted ? (
+                                <div style={{
+                                  background: 'var(--surface2)',
+                                  borderRadius: 'var(--radius)',
+                                  padding: '16px',
+                                  border: '1.5px solid var(--border)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '12px'
+                                }}>
+                                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                    ⭐ Rate your consultation experience
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '-6px' }}>
+                                    Help others find the best care at this clinic
+                                  </div>
+
+                                  {/* Star selectors */}
+                                  <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                      <span
+                                        key={star}
+                                        onClick={() => setActiveRating(star)}
+                                        style={{
+                                          fontSize: '28px',
+                                          cursor: 'pointer',
+                                          opacity: star <= activeRating ? '1' : '.3',
+                                          transition: 'opacity 0.15s'
+                                        }}
+                                      >
+                                        ⭐
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  {/* Comment input */}
+                                  <input
+                                    type="text"
+                                    placeholder="Write a brief comment (optional)..."
+                                    value={activeComment}
+                                    onChange={(e) => setActiveComment(e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      padding: '9px 12px',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--border2)',
+                                      background: 'var(--surface)',
+                                      fontSize: '12px',
+                                      fontFamily: 'inherit',
+                                      outline: 'none'
+                                    }}
+                                  />
+
+                                  {/* Submit button */}
+                                  <button
+                                    type="button"
+                                    onClick={handleLiveTrackerSubmitReview}
+                                    disabled={isRatingSubmitting}
+                                    style={{
+                                      background: 'var(--green)',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      padding: '9px 16px',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      alignSelf: 'flex-start',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                      opacity: isRatingSubmitting ? 0.7 : 1
+                                    }}
+                                  >
+                                    {isRatingSubmitting ? 'Submitting...' : 'Submit Feedback ✓'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{
+                                  background: 'rgba(5, 150, 105, 0.05)',
+                                  borderRadius: 'var(--radius)',
+                                  padding: '16px',
+                                  border: '1.5px solid var(--green)',
+                                  textAlign: 'center',
+                                  color: 'var(--green-dark)',
+                                  fontSize: '13px',
+                                  fontWeight: 600,
+                                  animation: 'fadeIn 0.3s ease'
+                                }}>
+                                  ❤️ Thank you! Your rating of {activeRating} ⭐ has been shared.
+                                </div>
+                              )}
+                            </div>
+                          ) : selectedToken.status === 'cancelled' ? (
+                            <div className="alert alert-r" style={{ borderLeft: '4px solid var(--red)' }}>
+                              <span style={{ fontSize: '18px' }}>❌</span>
+                              <div className="alert-txt">
+                                <strong>Booking Cancelled</strong>
+                                This token has been cancelled. If you paid booking fees, your refund has been processed.
+                              </div>
+                            </div>
+                          ) : selectedToken.status === 'serving' ? (
+                            <div className="alert alert-g alert-pulse" style={{ borderLeft: '4px solid var(--green)', padding: '16px' }}>
+                              <span style={{ fontSize: '18px' }}>🏥</span>
+                              <div className="alert-txt">
+                                <strong>It is your turn now!</strong>
+                                Please enter the doctor's consulting room.
+                              </div>
+                            </div>
+                          ) : waitingAhead === 0 ? (
+                            <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
+                              <span style={{ fontSize: '18px' }}>🏥</span>
+                              <div className="alert-txt">
+                                <strong>You are next in line!</strong>
+                                Please stand near the doctor's cabin. You will be called in a moment.
+                              </div>
+                            </div>
+                          ) : waitingAhead < 5 ? (
+                            <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
+                              <span style={{ fontSize: '18px' }}>🏥</span>
+                              <div className="alert-txt">
+                                <strong>Wait at the clinic</strong>
+                                Only {waitingAhead} patient(s) ahead of you. Please remain in the clinic waiting hall.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="alert alert-b" style={{ borderLeft: '4px solid var(--blue)' }}>
+                              <span style={{ fontSize: '18px' }}>🏡</span>
+                              <div className="alert-txt">
+                                <strong>Wait at home comfortably</strong>
+                                You have {waitingAhead} patients ahead. We'll alert you when 3 are left to leave home.
+                              </div>
+                            </div>
+                          )}
+
+                          {docDelay > 0 && selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
+                            <div className="alert alert-b">
+                              <span style={{ fontSize: '18px' }}>⏱️</span>
+                              <div className="alert-txt">
+                                <strong>Doctor delayed +{docDelay} min</strong>
+                                Session running late. Wait times adjusted.
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
+                            <button
+                              className="btn-p"
+                              style={{ width: '100%', marginTop: '16px', background: '#DC2626', color: 'white', border: 'none' }}
+                              onClick={handleCancelBooking}
+                            >
+                              Cancel Booking
+                            </button>
+                          )}
+                          <button className="btn-s" style={{ marginTop: '8px' }} onClick={handleBackToHome}>← Back to home</button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Screen 5: My Tokens List */}
+            {patientScreen === 'tokens' && (
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
+                <div className="topbar">
+                  <div className="topbar-title">My tokens</div>
+                </div>
+                <div className="scrollable">
+                  <div className="pad">
+                    <div className="sec-label">Active</div>
+
+                    {userBookings.filter(b => b.status === 'waiting' || b.status === 'serving').length > 0 ? (
+                      userBookings.filter(b => b.status === 'waiting' || b.status === 'serving').map(booking => {
+                        const clinic = clinics.find(c => c._id === booking.clinicId) || {};
+                        return (
+                          <div
+                            key={booking._id}
+                            style={{ background: 'var(--text)', borderRadius: 'var(--radius)', padding: '16px', marginBottom: '10px', color: 'white' }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                              <div>
+                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,.5)', marginBottom: '3px' }}>🏥 Clinic · Today {booking.slot}</div>
+                                <div style={{ fontSize: '16px', fontWeight: 600 }}>{clinic.name}</div>
+                                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,.55)', marginTop: '1px' }}>{clinic.address}</div>
+                              </div>
+                              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '26px', fontWeight: 500, color: 'var(--green-mid)' }}>
+                                {booking.tokenNumber}
+                              </div>
+                            </div>
+                            <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: '8px', padding: '11px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,.5)', marginBottom: '6px' }}>
+                                <span>Now serving</span>
+                                <span>Your token</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px', fontWeight: 600, color: 'var(--green-mid)' }}>A-12</span>
+                                <div style={{ flex: 1, display: 'flex', gap: '3px' }}>
+                                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--green)' }}></div>
+                                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--green)' }}></div>
+                                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
+                                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
+                                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
+                                </div>
+                                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,.6)' }}>{booking.tokenNumber}</span>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                              <button onClick={() => handleSelectToken(booking)} style={{ flex: 1, padding: '9px', background: 'var(--green)', color: 'white', border: 'none', borderRadius: '7px', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                                Track live →
+                              </button>
+                              <button onClick={() => alert('Booking cancelled. Refund initiated.')} style={{ flex: 1, padding: '9px', background: 'rgba(255,255,255,.1)', color: 'rgba(255,255,255,.7)', border: 'none', borderRadius: '7px', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', cursor: 'pointer' }}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px', marginBottom: '20px' }}>
+                        No active tokens. Book a clinic above to start tracking.
+                      </div>
+                    )}
+
+                    <div className="sec-label">Past bookings</div>
+
+                    {(() => {
+                      const pastBookings = userBookings
+                        .filter(b => b.status === 'done' || b.status === 'cancelled')
+                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                      if (pastBookings.length === 0) {
+                        return (
+                          <div style={{ padding: '24px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px', marginBottom: '20px' }}>
+                            No past consultation history yet.
+                          </div>
+                        );
+                      }
+
+                      return pastBookings.map((booking) => {
+                        const clinic = clinics.find(c => String(c._id) === String(booking.clinicId)) || {};
+                        const dateStr = new Date(booking.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        });
+                        const isExpanded = expandedPastTokenId === booking._id;
+                        const hasEMR = Boolean(booking.clinicalNotes || booking.prescription);
+
+                        return (
+                          <div
+                            key={booking._id}
+                            className="card"
+                            style={{
+                              cursor: 'default',
+                              marginBottom: '12px',
+                              border: hasEMR ? '1.5px solid rgba(29, 158, 117, 0.3)' : '1px solid var(--border)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                  {clinic.name || 'Clinic'}
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+                                  {dateStr} · Token {booking.tokenNumber} · Dr. {booking.doctorName}
+                                </div>
+                                {booking.complaints && booking.complaints.length > 0 && (
+                                  <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '3px' }}>
+                                    Complaints: {booking.complaints.join(', ')}
                                   </div>
                                 )}
                               </div>
-                            ) : selectedToken.status === 'cancelled' ? (
-                              <div className="alert alert-r" style={{ borderLeft: '4px solid var(--red)' }}>
-                                <span style={{ fontSize: '18px' }}>❌</span>
-                                <div className="alert-txt">
-                                  <strong>Booking Cancelled</strong>
-                                  This token has been cancelled. If you paid booking fees, your refund has been processed.
-                                </div>
-                              </div>
-                            ) : selectedToken.status === 'serving' ? (
-                              <div className="alert alert-g alert-pulse" style={{ borderLeft: '4px solid var(--green)', padding: '16px' }}>
-                                <span style={{ fontSize: '18px' }}>🏥</span>
-                                <div className="alert-txt">
-                                  <strong>It is your turn now!</strong>
-                                  Please enter the doctor's consulting room.
-                                </div>
-                              </div>
-                            ) : waitingAhead === 0 ? (
-                              <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
-                                <span style={{ fontSize: '18px' }}>🏥</span>
-                                <div className="alert-txt">
-                                  <strong>You are next in line!</strong>
-                                  Please stand near the doctor's cabin. You will be called in a moment.
-                                </div>
-                              </div>
-                            ) : waitingAhead < 5 ? (
-                              <div className="alert alert-a" style={{ borderLeft: '4px solid #D97706' }}>
-                                <span style={{ fontSize: '18px' }}>🏥</span>
-                                <div className="alert-txt">
-                                  <strong>Wait at the clinic</strong>
-                                  Only {waitingAhead} patient(s) ahead of you. Please remain in the clinic waiting hall.
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="alert alert-b" style={{ borderLeft: '4px solid var(--blue)' }}>
-                                <span style={{ fontSize: '18px' }}>🏡</span>
-                                <div className="alert-txt">
-                                  <strong>Wait at home comfortably</strong>
-                                  You have {waitingAhead} patients ahead. We'll alert you when 3 are left to leave home.
-                                </div>
-                              </div>
-                            )}
- 
-                            {docDelay > 0 && selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
-                              <div className="alert alert-b">
-                                <span style={{ fontSize: '18px' }}>⏱️</span>
-                                <div className="alert-txt">
-                                  <strong>Doctor delayed +{docDelay} min</strong>
-                                  Session running late. Wait times adjusted.
-                                </div>
-                              </div>
-                            )}
- 
-                            {selectedToken.status !== 'done' && selectedToken.status !== 'cancelled' && (
-                              <button 
-                                className="btn-p" 
-                                style={{ width: '100%', marginTop: '16px', background: '#DC2626', color: 'white', border: 'none' }} 
-                                onClick={handleCancelBooking}
-                              >
-                                Cancel Booking
-                              </button>
-                            )}
-                            <button className="btn-s" style={{ marginTop: '8px' }} onClick={handleBackToHome}>← Back to home</button>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Screen 5: My Tokens List */}
-              {patientScreen === 'tokens' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
-                  <div className="topbar">
-                    <div className="topbar-title">My tokens</div>
-                  </div>
-                  <div className="scrollable">
-                    <div className="pad">
-                      <div className="sec-label">Active</div>
-                      
-                      {userBookings.filter(b => b.status === 'waiting' || b.status === 'serving').length > 0 ? (
-                        userBookings.filter(b => b.status === 'waiting' || b.status === 'serving').map(booking => {
-                          const clinic = clinics.find(c => c._id === booking.clinicId) || {};
-                          return (
-                            <div 
-                              key={booking._id} 
-                              style={{ background: 'var(--text)', borderRadius: 'var(--radius)', padding: '16px', marginBottom: '10px', color: 'white' }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                                <div>
-                                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,.5)', marginBottom: '3px' }}>🏥 Clinic · Today {booking.slot}</div>
-                                  <div style={{ fontSize: '16px', fontWeight: 600 }}>{clinic.name}</div>
-                                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,.55)', marginTop: '1px' }}>{clinic.address}</div>
-                                </div>
-                                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '26px', fontWeight: 500, color: 'var(--green-mid)' }}>
-                                  {booking.tokenNumber}
-                                </div>
-                              </div>
-                              <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: '8px', padding: '11px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,.5)', marginBottom: '6px' }}>
-                                  <span>Now serving</span>
-                                  <span>Your token</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px', fontWeight: 600, color: 'var(--green-mid)' }}>A-12</span>
-                                  <div style={{ flex: 1, display: 'flex', gap: '3px' }}>
-                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--green)' }}></div>
-                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--green)' }}></div>
-                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
-                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
-                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,.2)' }}></div>
-                                  </div>
-                                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,.6)' }}>{booking.tokenNumber}</span>
-                                </div>
-                              </div>
-                              <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-                                <button onClick={() => handleSelectToken(booking)} style={{ flex: 1, padding: '9px', background: 'var(--green)', color: 'white', border: 'none', borderRadius: '7px', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                                  Track live →
-                                  </button>
-                                <button onClick={() => alert('Booking cancelled. Refund initiated.')} style={{ flex: 1, padding: '9px', background: 'rgba(255,255,255,.1)', color: 'rgba(255,255,255,.7)', border: 'none', borderRadius: '7px', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', cursor: 'pointer' }}>
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px', marginBottom: '20px' }}>
-                          No active tokens. Book a clinic above to start tracking.
-                        </div>
-                      )}
-
-                      <div className="sec-label">Past bookings</div>
-                      
-                      <div className="card" style={{ cursor: 'default' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Dr. Ramesh General Clinic</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>Yesterday · Token A-08 · Fever, cold</div>
-                          </div>
-                          <span className="pill pg">Done</span>
-                        </div>
-                        <div style={{ marginTop: '9px', paddingTop: '9px', borderTop: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>Rate your experience</div>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {[1, 2, 3, 4, 5].map(star => (
-                              <span 
-                                key={star}
-                                onClick={() => handleRateStar('stars-1', star)} 
-                                style={{ fontSize: '21px', cursor: 'pointer', opacity: star <= (ratings['stars-1'] || 0) ? '1' : '.3' }}
-                              >
-                                ⭐
+                              <span className={`pill ${booking.status === 'done' ? 'pg' : 'pr'}`}>
+                                {booking.status === 'done' ? 'Completed' : 'Cancelled'}
                               </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="card" style={{ cursor: 'default' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Sakthi Paediatric Clinic</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>Last week · Token C-22 · Anjali (daughter)</div>
-                          </div>
-                          <span className="pill pr">Cancelled</span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text3)', marginTop: '7px' }}>Refund of ₹125 credited</div>
-                      </div>
-
-                    </div>
-                  </div>
-                  
-
-                </div>
-              )}
-
-              {/* Screen 6: Profile Panel */}
-              {patientScreen === 'profile' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
-                  <div className="topbar"><div className="topbar-title">My profile</div></div>
-                  <div className="scrollable">
-                    <div className="pad">
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
-                        <div style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0 }}>👩</div>
-                        <div>
-                          <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>{userName}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{userPhone}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '2px' }}>Thanjavur, Tamil Nadu</div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '18px' }}>
-                        <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--text)' }}>{userBookings.length}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Bookings</div>
-                        </div>
-                        <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--green)' }}>
-                            {userBookings.filter(b => b.status === 'done').length}
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Completed</div>
-                        </div>
-                        <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--purple)' }}>1</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Saved</div>
-                        </div>
-                      </div>
-
-                      <div className="sec-label">Family members</div>
-                      <div className="card" style={{ cursor: 'default', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#FBEAF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>👧</div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Anjali</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Daughter · 4 yrs · Female</div>
-                          </div>
-                          <span className="pill pgr">Saved</span>
-                        </div>
-                      </div>
-                      <button className="btn-s" style={{ marginBottom: '18px' }} onClick={() => alert('Add family member coming soon!')}>+ Add family member</button>
-
-                      <div className="sec-label">Saved places</div>
-                      {clinics[0] && (
-                        <div className="card" onClick={() => handleSelectClinic(clinics[0])} style={{ marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-sm)', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🏥</div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{clinics[0].name}</div>
-                              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>{clinics[0].address} · {clinics[0].rating} ⭐</div>
                             </div>
-                            <span style={{ fontSize: '18px' }}>❤️</span>
+
+                            {/* Prescription & Clinical Entry for this past booking */}
+                            {hasEMR && (
+                              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border2)' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedPastTokenId(isExpanded ? null : booking._id)}
+                                  style={{
+                                    background: 'var(--green-light)',
+                                    color: 'var(--green-dark)',
+                                    border: '1px solid var(--green)',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    width: '100%'
+                                  }}
+                                >
+                                  <span>🩺 View Digital Prescription & Advice</span>
+                                  <span>{isExpanded ? '▲' : '▼'}</span>
+                                </button>
+
+                                {isExpanded && (
+                                  <div style={{
+                                    background: 'var(--surface2)',
+                                    borderRadius: '6px',
+                                    padding: '12px',
+                                    marginTop: '8px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    fontSize: '12px'
+                                  }}>
+                                    {booking.clinicalNotes && (
+                                      <div>
+                                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', marginBottom: '2px' }}>
+                                          📋 Doctor's Notes & Diagnosis:
+                                        </div>
+                                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                                          {booking.clinicalNotes}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {booking.prescription && (
+                                      <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '8px 10px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green-dark)', marginBottom: '2px' }}>
+                                          💊 Prescription (Rx):
+                                        </div>
+                                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.4', fontWeight: 500 }}>
+                                          {booking.prescription}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.print()}
+                                        style={{
+                                          background: 'var(--surface)',
+                                          border: '1px solid var(--border)',
+                                          color: 'var(--text)',
+                                          borderRadius: '4px',
+                                          padding: '4px 8px',
+                                          fontSize: '11px',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        🖨️ Print Prescription
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {booking.status === 'done' && (
+                              <div style={{ marginTop: '9px', paddingTop: '9px', borderTop: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>Rate your experience</div>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  {[1, 2, 3, 4, 5].map(star => (
+                                    <span
+                                      key={star}
+                                      onClick={() => handleRateStar(`stars-${booking._id}`, star)}
+                                      style={{ fontSize: '20px', cursor: 'pointer', opacity: star <= (ratings[`stars-${booking._id}`] || 5) ? '1' : '.3' }}
+                                    >
+                                      ⭐
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      });
+                    })()}
 
-                      <div className="sec-label">Account settings</div>
-                      <div className="ilist">
-                        <div className="irow" style={{ cursor: 'pointer' }}><span className="ilabel">🔔 Notifications</span><span className="ival" style={{ color: 'var(--green)' }}>On</span></div>
-                        <div className="irow" style={{ cursor: 'pointer' }}><span className="ilabel">🌐 Language</span><span className="ival">English / தமிழ்</span></div>
-                        <div className="irow" style={{ cursor: 'pointer' }} onClick={handleLogout}><span className="ilabel" style={{ color: 'var(--red)' }}>🚪 Logout</span></div>
-                      </div>
-                      
-                      <div style={{ height: '16px' }}></div>
-                    </div>
                   </div>
-
-
                 </div>
-              )}
-              {/* Auth Overlay */}
-              {patientScreen === 'auth' && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', flexDirection: 'column' }}>
-                  <AuthScreens 
+
+
+              </div>
+            )}
+
+            {/* Screen 6: Profile Panel */}
+            {patientScreen === 'profile' && (
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '100vh' }}>
+                <div className="topbar"><div className="topbar-title">My profile</div></div>
+                <div className="scrollable">
+                  <div className="pad">
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
+                      <div style={{ width: '62px', height: '62px', borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0 }}>👩</div>
+                      <div>
+                        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>{userName}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{userPhone}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '2px' }}>Thanjavur, Tamil Nadu</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '18px' }}>
+                      <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--text)' }}>{userBookings.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Bookings</div>
+                      </div>
+                      <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--green)' }}>
+                          {userBookings.filter(b => b.status === 'done').length}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Completed</div>
+                      </div>
+                      <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '11px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '19px', fontWeight: 600, color: 'var(--purple)' }}>1</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Saved</div>
+                      </div>
+                    </div>
+
+                    <div className="sec-label">Family members</div>
+                    <div className="card" style={{ cursor: 'default', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#FBEAF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>👧</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Anjali</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Daughter · 4 yrs · Female</div>
+                        </div>
+                        <span className="pill pgr">Saved</span>
+                      </div>
+                    </div>
+                    <button className="btn-s" style={{ marginBottom: '18px' }} onClick={() => alert('Add family member coming soon!')}>+ Add family member</button>
+
+                    <div className="sec-label">Saved places</div>
+                    {clinics[0] && (
+                      <div className="card" onClick={() => handleSelectClinic(clinics[0])} style={{ marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-sm)', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🏥</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{clinics[0].name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text2)' }}>{clinics[0].address} · {clinics[0].rating} ⭐</div>
+                          </div>
+                          <span style={{ fontSize: '18px' }}>❤️</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="sec-label">Account settings</div>
+                    <div className="ilist">
+                      <div className="irow" style={{ cursor: 'pointer' }}><span className="ilabel">🔔 Notifications</span><span className="ival" style={{ color: 'var(--green)' }}>On</span></div>
+                      <div className="irow" style={{ cursor: 'pointer' }}><span className="ilabel">🌐 Language</span><span className="ival">English / தமிழ்</span></div>
+                      <div className="irow" style={{ cursor: 'pointer' }} onClick={handleLogout}><span className="ilabel" style={{ color: 'var(--red)' }}>🚪 Logout</span></div>
+                    </div>
+
+                    <div style={{ height: '16px' }}></div>
+                  </div>
+                </div>
+
+
+              </div>
+            )}
+            {/* Auth Overlay Modal with Cinematic Clinic Background */}
+            {patientScreen === 'auth' && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundImage: `linear-gradient(135deg, rgba(11, 19, 31, 0.42) 0%, rgba(7, 15, 30, 0.58) 100%), url('/images/clinic-bg.jpg')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                  padding: '16px'
+                }}
+                onClick={handleCloseAuth}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: '460px',
+                    maxHeight: '92vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: 'rgba(255, 255, 255, 0.98)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    borderRadius: '24px',
+                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    border: '1px solid var(--border)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <AuthScreens
                     onLoginSuccess={handleLoginSuccess}
                     onClose={handleCloseAuth}
                   />
                 </div>
-              )}
-            </>
+              </div>
+            )}
+          </>
         </div>
       ) : (
         /* ===== ADMIN WORKFLOW ===== */
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', maxWidth: '1000px', margin: '0 auto', background: 'var(--surface)', minHeight: '100vh', boxShadow: '0 0 20px rgba(0,0,0,0.05)' }}>
-          <AdminDashboard 
+          <AdminDashboard
             clinics={clinics}
             bookings={bookings}
             onRefresh={fetchData}

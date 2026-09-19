@@ -233,3 +233,36 @@ export function updateMockBookingStatus(id, status) {
   bookings = bookings.map(b => b._id === id ? { ...b, status } : b);
   return bookings.find(b => b._id === id);
 }
+
+export function updateMockBookingNotes(id, prescription, clinicalNotes) {
+  bookings = bookings.map(b => b._id === id ? { ...b, prescription: prescription || '', clinicalNotes: clinicalNotes || '' } : b);
+  return bookings.find(b => b._id === id);
+}
+
+export function addMockClinicalEntry({ clinicId, patientName, patientPhone, patientAge, patientGender, doctorName, clinicalNotes, prescription, bookingId, isNewRecord }) {
+  if (bookingId && !isNewRecord) {
+    return updateMockBookingNotes(bookingId, prescription, clinicalNotes);
+  }
+  const newB = {
+    _id: 'booking_' + (bookings.length + 1),
+    tokenNumber: 'E-' + Math.floor(100 + Math.random() * 900),
+    clinicId,
+    patientName,
+    patientPhone,
+    patientAge: Number(patientAge) || 25,
+    patientGender: patientGender || 'M',
+    doctorName: doctorName || 'Doctor',
+    status: 'done',
+    visitType: 'returning',
+    clinicalNotes: clinicalNotes || '',
+    prescription: prescription || '',
+    createdAt: new Date()
+  };
+  bookings.unshift(newB);
+  return newB;
+}
+
+export function deleteMockClinicalEntry(id) {
+  bookings = bookings.filter(item => String(item._id) !== String(id));
+  return true;
+}

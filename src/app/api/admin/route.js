@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
+import { updateMockBookingStatus, updateMockBookingNotes, addMockClinicalEntry, deleteMockClinicalEntry } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,7 @@ export async function POST(request) {
         if (!clinic) {
           return NextResponse.json({ success: false, error: 'Clinic not found' }, { status: 404 });
         }
-        
+
         // Ensure no duplicate names
         if (clinic.doctors.some(d => d.name.toLowerCase() === doctorName.toLowerCase() && d.session === session)) {
           return NextResponse.json({ success: false, error: 'Doctor session timings already registered' }, { status: 400 });
@@ -93,27 +94,27 @@ export async function POST(request) {
         if (!clinic) {
           return NextResponse.json({ success: false, error: 'Clinic not found' }, { status: 404 });
         }
- 
+
         const doc = clinic.doctors.find(d => d.name === originalName && d.session === session);
         if (!doc) {
           return NextResponse.json({ success: false, error: 'Doctor not found' }, { status: 404 });
         }
- 
+
         doc.name = doctorName;
         doc.specialty = specialty;
         doc.timings = timings;
         doc.qualification = qualification;
         doc.experience = experience;
- 
+
         await clinic.save();
- 
+
         if (originalName !== doctorName) {
           await Booking.updateMany(
             { clinicId, doctorName: originalName },
             { doctorName: doctorName }
           );
         }
- 
+
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 
@@ -158,14 +159,98 @@ export async function POST(request) {
 
       // Booking notes update (prescription and clinical notes)
       if (action === 'updateBookingNotes') {
-        const booking = await Booking.findByIdAndUpdate(bookingId, { prescription, clinicalNotes }, { new: true });
+        const booking = await Booking.findByIdAndUpdate(
+          bookingId,
+          {
+            prescription: prescription !== undefined ? prescription : '',
+            clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : ''
+          },
+          { new: true }
+        );
         return NextResponse.json({ success: true, data: booking, source: 'database' });
+      }
+
+      // Add a clinical entry / create new clinical visit record
+      if (action === 'addClinicalEntry') {
+        const {
+          patientName,
+          patientPhone,
+          patientAge,
+          patientGender,
+          doctorName,
+          isNewRecord
+        } = body;
+
+        if (bookingId && !isNewRecord) {
+          const booking = await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+              prescription: prescription !== undefined ? prescription : '',
+              clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : ''
+            },
+            { new: true }
+          );
+          return NextResponse.json({ success: true, data: booking, source: 'database' });
+        } else {
+          const clinic = await Clinic.findById(clinicId);
+          const docName = doctorName || (clinic && clinic.doctors && clinic.doctors[0] ? clinic.doctors[0].name : (clinic ? clinic.doctorName : 'Doctor'));
+          const cleanPhone = (patientPhone || '').trim();
+
+          const newBooking = await Booking.create({
+            tokenNumber: 'E-' + Math.floor(100 + Math.random() * 900),
+            clinicId,
+            patientName: patientName || 'Patient',
+            patientPhone: cleanPhone,
+            patientAge: Number(patientAge) || 25,
+            patientGender: patientGender || 'M',
+            doctorName: docName,
+            status: 'done',
+            visitType: 'returning',
+            slot: 'Clinical Consultation',
+            clinicalNotes: clinicalNotes || '',
+            prescription: prescription || '',
+            createdAt: new Date()
+          });
+          return NextResponse.json({ success: true, data: newBooking, source: 'database' });
+        }
+      }
+
+      // Delete clinical entry or clear notes
+      if (action === 'deleteClinicalEntry') {
+        const booking = await Booking.findById(bookingId);
+        if (booking) {
+          if (booking.tokenNumber && String(booking.tokenNumber).startsWith('E-')) {
+            await Booking.findByIdAndDelete(bookingId);
+          } else {
+            booking.clinicalNotes = '';
+            booking.prescription = '';
+            await booking.save();
+          }
+          return NextResponse.json({ success: true, message: 'Clinical entry deleted', source: 'database' });
+        }
+        return NextResponse.json({ success: false, error: 'Booking record not found' }, { status: 404 });
       }
 
       return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
 
     } catch (dbError) {
-      console.error('Database Admin Action error:', dbError);
+      console.warn('Database Admin Action error, checking mock fallback:', dbError.message);
+      if (action === 'updateBookingNotes') {
+        const booking = updateMockBookingNotes(bookingId, prescription, clinicalNotes);
+        return NextResponse.json({ success: true, data: booking, source: 'mock' });
+      }
+      if (action === 'addClinicalEntry') {
+        const booking = addMockClinicalEntry(body);
+        return NextResponse.json({ success: true, data: booking, source: 'mock' });
+      }
+      if (action === 'deleteClinicalEntry') {
+        deleteMockClinicalEntry(bookingId);
+        return NextResponse.json({ success: true, source: 'mock' });
+      }
+      if (action === 'updateBookingStatus') {
+        const booking = updateMockBookingStatus(bookingId, status);
+        return NextResponse.json({ success: true, data: booking, source: 'mock' });
+      }
       return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
     }
   } catch (error) {
