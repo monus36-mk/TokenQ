@@ -509,10 +509,50 @@ export default function Home() {
                         <div className="token-clinic">
                           {clinic.name} · {selectedToken.slot}
                         </div>
-                        <div style={{ marginTop: '12px' }}>
+                        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.85)' }}>
-                            💵 Fee: ₹{clinic.fee || 100} (Pay at Clinic)
+                            Fee: ₹{clinic.fee || 100} (Pay at Clinic)
                           </span>
+                          {(() => {
+                            const mapUrl = clinic.latitude && clinic.longitude
+                              ? `https://www.google.com/maps/dir/?api=1&destination=${clinic.latitude},${clinic.longitude}`
+                              : (clinic.googleMapsUrl || (clinic.address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(clinic.address)}` : ''));
+                            if (!mapUrl) return null;
+                            return (
+                              <a
+                                href={mapUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="pill"
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.25)',
+                                  color: '#A7F3D0',
+                                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                                  textDecoration: 'none',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🧭 Directions to Clinic ↗
+                              </a>
+                            );
+                          })()}
+                          {clinic.contact && (
+                            <a
+                              href={`tel:${clinic.contact.replace(/[^0-9+]/g, '')}`}
+                              className="pill"
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.25)',
+                                color: '#93C5FD',
+                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                textDecoration: 'none',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📞 Call Clinic
+                            </a>
+                          )}
                         </div>
                       </div>
 
@@ -1086,43 +1126,14 @@ export default function Home() {
 
               </div>
             )}
-            {/* Auth Overlay Modal with Cinematic Clinic Background */}
+            {/* Auth Overlay Modal */}
             {patientScreen === 'auth' && (
               <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 1000,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundImage: `linear-gradient(135deg, rgba(11, 19, 31, 0.42) 0%, rgba(7, 15, 30, 0.58) 100%), url('/images/clinic-bg.jpg')`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                  padding: '16px'
-                }}
+                className="auth-overlay-backdrop"
                 onClick={handleCloseAuth}
               >
                 <div
-                  style={{
-                    width: '100%',
-                    maxWidth: '460px',
-                    maxHeight: '92vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    background: 'rgba(255, 255, 255, 0.98)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    borderRadius: '24px',
-                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.3)',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    border: '1px solid var(--border)'
-                  }}
+                  className="auth-modal-card"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <AuthScreens

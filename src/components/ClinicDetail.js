@@ -103,16 +103,88 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
             <div className="sec-label" style={{ marginTop: 0 }}>Clinic Info</div>
             <div className="ilist">
               <div className="irow" style={{ alignItems: 'flex-start' }}>
-                <span className="ilabel" style={{ flexShrink: 0, width: '90px' }}>📍 Address</span>
-                <span className="ival" style={{ textAlign: 'right', wordBreak: 'break-word', lineHeight: '1.4' }}>{clinic.address}</span>
+                <span className="ilabel" style={{ flexShrink: 0, width: '80px' }}>📍 Address</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flex: 1 }}>
+                  <span className="ival" style={{ textAlign: 'right', wordBreak: 'break-word', lineHeight: '1.4' }}>
+                    {clinic.address || 'Address not listed'}
+                  </span>
+                  {(() => {
+                    const hasCoords = clinic.latitude && clinic.longitude;
+                    const mapUrl = hasCoords
+                      ? `https://www.google.com/maps/dir/?api=1&destination=${clinic.latitude},${clinic.longitude}`
+                      : (clinic.googleMapsUrl || (clinic.address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(clinic.address)}` : ''));
+                    
+                    if (!mapUrl) return null;
+                    return (
+                      <a
+                        href={mapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                          color: '#ffffff',
+                          textDecoration: 'none',
+                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span>🧭 Get Directions</span>
+                        <span style={{ fontSize: '11px', opacity: 0.9 }}>↗</span>
+                      </a>
+                    );
+                  })()}
+                </div>
               </div>
               <div className="irow">
-                <span className="ilabel">💰 Fee</span>
+                <span className="ilabel">Fee</span>
                 <span className="ival">₹{clinic.fee} consultation</span>
               </div>
               <div className="irow">
                 <span className="ilabel">📞 Contact</span>
-                <span className="ival" style={{ color: 'var(--blue)' }}>{clinic.contact}</span>
+                {clinic.contact ? (
+                  <a
+                    href={`tel:${clinic.contact.replace(/[^0-9+]/g, '')}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      color: 'var(--blue)',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                    title="Click to call clinic"
+                  >
+                    <span>{clinic.contact}</span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        background: 'rgba(59, 130, 246, 0.12)',
+                        color: 'var(--blue)',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontWeight: 600,
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                    >
+                      Call 📞
+                    </span>
+                  </a>
+                ) : (
+                  <span className="ival" style={{ color: 'var(--text3)' }}>Not provided</span>
+                )}
               </div>
             </div>
           </div>

@@ -33,8 +33,8 @@ export async function POST(request) {
 
       // Clinic-level onboarding complete
       if (action === 'completeOnboarding') {
-        const { specialty, icon, address, fee, timings, contact, totalTokens } = body;
-        const clinic = await Clinic.findByIdAndUpdate(clinicId, {
+        const { specialty, icon, address, latitude, longitude, googleMapsUrl, fee, timings, contact, totalTokens } = body;
+        const updateData = {
           specialty,
           icon,
           address,
@@ -42,20 +42,30 @@ export async function POST(request) {
           timings,
           contact,
           totalTokens: Number(totalTokens)
-        }, { new: true });
+        };
+        if (latitude !== undefined && latitude !== null && latitude !== '') updateData.latitude = Number(latitude);
+        if (longitude !== undefined && longitude !== null && longitude !== '') updateData.longitude = Number(longitude);
+        if (googleMapsUrl !== undefined) updateData.googleMapsUrl = googleMapsUrl;
+
+        const clinic = await Clinic.findByIdAndUpdate(clinicId, updateData, { new: true });
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 
       // Clinic-level profile details update
       if (action === 'updateClinicDetails') {
-        const { name, address, fee, contact, profilePic } = body;
-        const clinic = await Clinic.findByIdAndUpdate(clinicId, {
+        const { name, address, latitude, longitude, googleMapsUrl, fee, contact, profilePic } = body;
+        const updateData = {
           name,
           address,
           fee: Number(fee),
           contact,
           profilePic
-        }, { new: true });
+        };
+        if (latitude !== undefined && latitude !== null && latitude !== '') updateData.latitude = Number(latitude);
+        if (longitude !== undefined && longitude !== null && longitude !== '') updateData.longitude = Number(longitude);
+        if (googleMapsUrl !== undefined) updateData.googleMapsUrl = googleMapsUrl;
+
+        const clinic = await Clinic.findByIdAndUpdate(clinicId, updateData, { new: true });
         return NextResponse.json({ success: true, data: clinic, source: 'database' });
       }
 

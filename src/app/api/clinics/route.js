@@ -67,7 +67,7 @@ export async function POST(request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { name, doctorName, specialty, address, fee, timings, contact, totalTokens, avgWaitTime, icon, adminEmail, adminPassword, doctors } = body;
+    const { name, doctorName, specialty, address, latitude, longitude, googleMapsUrl, fee, timings, contact, totalTokens, avgWaitTime, icon, adminEmail, adminPassword, doctors } = body;
 
     let doctorList = [];
     if (doctors && Array.isArray(doctors) && doctors.length > 0) {
@@ -94,6 +94,9 @@ export async function POST(request) {
       specialty: specialty || 'General',
       timings: timings || '',
       address: address || '',
+      latitude: latitude ? Number(latitude) : undefined,
+      longitude: longitude ? Number(longitude) : undefined,
+      googleMapsUrl: googleMapsUrl || '',
       fee: fee ? Number(fee) : 0,
       contact: contact || '',
       totalTokens: totalTokens ? Number(totalTokens) : 40,

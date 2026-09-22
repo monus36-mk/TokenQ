@@ -19,6 +19,18 @@ const ClinicSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  latitude: {
+    type: Number,
+    required: false,
+  },
+  longitude: {
+    type: Number,
+    required: false,
+  },
+  googleMapsUrl: {
+    type: String,
+    default: '',
+  },
   fee: {
     type: Number,
     required: false,

@@ -85,6 +85,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   const [editName, setEditName] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editLatitude, setEditLatitude] = useState('');
+  const [editLongitude, setEditLongitude] = useState('');
+  const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('');
   const [editFee, setEditFee] = useState('');
   const [editContact, setEditContact] = useState('');
   const [editProfilePic, setEditProfilePic] = useState('');
@@ -95,10 +100,14 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     if (activeClinic && activeClinic._id !== loadedClinicId) {
       setEditName(activeClinic.name || '');
       setEditAddress(activeClinic.address || '');
+      setEditLatitude(activeClinic.latitude !== undefined && activeClinic.latitude !== null ? activeClinic.latitude.toString() : '');
+      setEditLongitude(activeClinic.longitude !== undefined && activeClinic.longitude !== null ? activeClinic.longitude.toString() : '');
+      setEditGoogleMapsUrl(activeClinic.googleMapsUrl || '');
       setEditFee(activeClinic.fee?.toString() || '');
       setEditContact(activeClinic.contact || '');
       setEditProfilePic(activeClinic.profilePic || '');
       setLoadedClinicId(activeClinic._id);
+      setLocationStatus('');
     }
   }, [selectedClinicId, clinics, loadedClinicId]);
 
@@ -143,6 +152,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     specialty: 'General',
     icon: '🏥',
     address: '',
+    latitude: '',
+    longitude: '',
+    googleMapsUrl: '',
     fee: '120',
     timings: '9:00 AM – 1:00 PM',
     contact: '',
@@ -150,6 +162,36 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   });
   const [onboardError, setOnboardError] = useState('');
   const [isOnboardingSubmit, setIsOnboardingSubmit] = useState(false);
+  const [isOnboardDetecting, setIsOnboardDetecting] = useState(false);
+  const [onboardLocationStatus, setOnboardLocationStatus] = useState('');
+
+  const handleOnboardDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    setIsOnboardDetecting(true);
+    setOnboardLocationStatus('Fetching GPS...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setOnboardForm(prev => ({
+          ...prev,
+          latitude: lat.toFixed(6),
+          longitude: lng.toFixed(6)
+        }));
+        setIsOnboardDetecting(false);
+        setOnboardLocationStatus(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      },
+      (error) => {
+        setIsOnboardDetecting(false);
+        setOnboardLocationStatus('');
+        alert('Could not fetch GPS location: ' + error.message + '. Please enable browser location permissions.');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
 
   const handleOnboardSubmit = async (e) => {
     e.preventDefault();
@@ -455,6 +497,31 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     }
   };
 
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    setIsDetectingLocation(true);
+    setLocationStatus('Fetching GPS coordinates...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setEditLatitude(lat.toFixed(6));
+        setEditLongitude(lng.toFixed(6));
+        setIsDetectingLocation(false);
+        setLocationStatus(`GPS Locked: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      },
+      (error) => {
+        setIsDetectingLocation(false);
+        setLocationStatus('');
+        alert('Could not fetch GPS location: ' + error.message + '. Please ensure browser location permissions are enabled.');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
+
   const handleUpdateClinicProfile = async (e) => {
     e.preventDefault();
     try {
@@ -466,6 +533,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           clinicId: clinic._id,
           name: editName,
           address: editAddress,
+          latitude: editLatitude ? Number(editLatitude) : undefined,
+          longitude: editLongitude ? Number(editLongitude) : undefined,
+          googleMapsUrl: editGoogleMapsUrl,
           fee: Number(editFee),
           contact: editContact,
           profilePic: editProfilePic
@@ -478,6 +548,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
         if (updatedClinic) {
           setEditName(updatedClinic.name || '');
           setEditAddress(updatedClinic.address || '');
+          setEditLatitude(updatedClinic.latitude !== undefined && updatedClinic.latitude !== null ? updatedClinic.latitude.toString() : '');
+          setEditLongitude(updatedClinic.longitude !== undefined && updatedClinic.longitude !== null ? updatedClinic.longitude.toString() : '');
+          setEditGoogleMapsUrl(updatedClinic.googleMapsUrl || '');
           setEditFee(updatedClinic.fee?.toString() || '');
           setEditContact(updatedClinic.contact || '');
           setEditProfilePic(updatedClinic.profilePic || '');
@@ -707,6 +780,40 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   onChange={(e) => setOnboardForm({ ...onboardForm, address: e.target.value })}
                   required
                 />
+              </div>
+
+              {/* Onboarding GPS Location Detection */}
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600' }}>📍 Set Exact GPS Location</span>
+                  <button
+                    type="button"
+                    onClick={handleOnboardDetectLocation}
+                    disabled={isOnboardDetecting}
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      background: 'var(--green-light)',
+                      color: 'var(--green-dark)',
+                      border: '1px solid var(--green-mid)',
+                      borderRadius: '6px',
+                      cursor: isOnboardDetecting ? 'wait' : 'pointer'
+                    }}
+                  >
+                    {isOnboardDetecting ? '⏳ Detecting GPS...' : '📍 Use Current Location'}
+                  </button>
+                </div>
+                {onboardForm.latitude && onboardForm.longitude ? (
+                  <span style={{ fontSize: '11px', color: 'var(--green-dark)', fontWeight: '500' }}>
+                    ✓ Locked Coordinates: {onboardForm.latitude}, {onboardForm.longitude}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '11px', color: 'var(--text3)' }}>Optional: Tap if you are currently at the clinic</span>
+                )}
+                {onboardLocationStatus && (
+                  <span style={{ fontSize: '10px', color: 'var(--green-dark)' }}>{onboardLocationStatus}</span>
+                )}
               </div>
 
               <div className="frow" style={{ display: 'flex', gap: '10px' }}>
@@ -1281,8 +1388,65 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     className="fi-input"
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
+                    placeholder="e.g. 792 MIG EB Colony Road, Thanjavur"
                     required
                   />
+                </div>
+
+                {/* GPS Location & Google Maps Navigation Control */}
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text)' }}>📍 GPS Location (Exact Pinpoint)</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Click when you are at the clinic to automatically save exact location for patients.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      disabled={isDetectingLocation}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        background: 'var(--green-light)',
+                        color: 'var(--green-dark)',
+                        border: '1px solid var(--green-mid)',
+                        borderRadius: '6px',
+                        cursor: isDetectingLocation ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      {isDetectingLocation ? '⏳ Detecting GPS...' : '📍 Use Current GPS Location'}
+                    </button>
+                  </div>
+
+                  {(editLatitude && editLongitude) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '8px 12px', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--green-dark)', fontWeight: '500' }}>
+                        ✓ GPS Coordinates: {editLatitude}, {editLongitude}
+                      </span>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${editLatitude},${editLongitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '12px', color: 'var(--blue)', textDecoration: 'none', fontWeight: '600' }}
+                      >
+                        Test Route on Maps ↗
+                      </a>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
+                      No GPS coordinates set yet (Defaults to searching typed address on Google Maps).
+                    </div>
+                  )}
+
+                  {locationStatus && (
+                    <div style={{ fontSize: '11px', color: 'var(--green-dark)', fontStyle: 'italic' }}>
+                      {locationStatus}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
