@@ -266,3 +266,17 @@ export function deleteMockClinicalEntry(id) {
   bookings = bookings.filter(item => String(item._id) !== String(id));
   return true;
 }
+
+export function cancelMockDoctorSlots(clinicId, doctorName) {
+  let count = 0;
+  bookings.forEach(b => {
+    const matchClinic = !clinicId || String(b.clinicId) === String(clinicId);
+    const matchDoc = !doctorName || b.doctorName === doctorName;
+    if (matchClinic && matchDoc && b.status === 'waiting') {
+      b.status = 'cancelled';
+      count++;
+    }
+  });
+  return count;
+}
+

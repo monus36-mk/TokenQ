@@ -877,8 +877,8 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
             <div>
               {/* Doctor filter dropdown */}
               {clinicDoctors.length > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', background: 'var(--surface2)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', background: 'var(--surface2)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap' }}>
                     👨‍⚕️ Filter by Doctor:
                   </div>
                   <select
@@ -889,10 +889,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       color: 'var(--text)',
                       border: '1.5px solid var(--border)',
                       borderRadius: '6px',
-                      padding: '4px 8px',
-                      fontSize: '13px',
+                      padding: '6px 10px',
+                      fontSize: '12px',
                       outline: 'none',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      minWidth: '180px'
                     }}
                   >
                     <option value="All">All Doctors ({clinicBookings.length} tokens)</option>
@@ -911,43 +912,32 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
               <div className="sec-label">Currently serving</div>
               {currentServingPatient ? (
                 <div
+                  className="serving-patient-card"
                   onClick={() => setViewingPatient(currentServingPatient)}
-                  style={{ background: 'var(--green-light)', borderRadius: 'var(--radius)', padding: '13px 15px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
                 >
-                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '20px', fontWeight: 500, color: 'var(--green-dark)', background: 'white', borderRadius: '50%', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {currentServingPatient.tokenNumber}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--green-dark)' }}>{currentServingPatient.patientName}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--green)', marginTop: '1px' }}>
-                      {currentServingPatient.patientAge} yrs · {currentServingPatient.patientGender === 'M' ? 'Male' : 'Female'} · {currentServingPatient.slot}
+                  <div className="serving-patient-top">
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '18px', fontWeight: 600, color: 'var(--green-dark)', background: 'white', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }}>
+                      {currentServingPatient.tokenNumber}
                     </div>
-                    {currentServingPatient.complaints?.length > 0 && (
-                      <div style={{ fontSize: '12px', color: 'var(--green-dark)', marginTop: '2px' }}>
-                        Symptoms: {currentServingPatient.complaints.join(', ')}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--green-dark)', wordBreak: 'break-word', lineHeight: '1.3' }}>
+                        {currentServingPatient.patientName}
                       </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--green)', marginTop: '2px', lineHeight: '1.3' }}>
+                        {currentServingPatient.patientAge} yrs · {currentServingPatient.patientGender === 'M' ? 'Male' : 'Female'} · {currentServingPatient.slot}
+                      </div>
+                      {currentServingPatient.complaints?.length > 0 && (
+                        <div style={{ fontSize: '11px', color: 'var(--green-dark)', marginTop: '2px' }}>
+                          Symptoms: {currentServingPatient.complaints.join(', ')}
+                        </div>
+                      )}
+                    </div>
                     {currentServingPatient.patientPhone && (
-                      <>
+                      <div className="serving-patient-contacts">
                         <a
                           href={`tel:${currentServingPatient.patientPhone}`}
                           onClick={(e) => e.stopPropagation()}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            background: 'white',
-                            border: '1.5px solid var(--green-mid)',
-                            textDecoration: 'none',
-                            fontSize: '15px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                            transition: 'transform 0.1s'
-                          }}
+                          className="serving-contact-icon"
                           title={`Call ${currentServingPatient.patientName}`}
                         >
                           📞
@@ -957,38 +947,28 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           onClick={(e) => e.stopPropagation()}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            background: '#E8F5E9',
-                            border: '1.5px solid #2E7D32',
-                            textDecoration: 'none',
-                            fontSize: '15px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                            transition: 'transform 0.1s'
-                          }}
+                          className="serving-contact-icon whatsapp"
                           title={`WhatsApp ${currentServingPatient.patientName}`}
                         >
                           💬
                         </a>
-                      </>
+                      </div>
                     )}
+                  </div>
+
+                  {/* Actions (Undo & Done buttons) */}
+                  <div className="serving-patient-actions">
                     <button
-                      className="btn-rej"
+                      className="serving-btn-undo"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAdminAction({ action: 'updateBookingStatus', bookingId: currentServingPatient._id, status: 'waiting' });
                       }}
-                      style={{ marginRight: '6px' }}
                     >
                       Undo ↩
                     </button>
                     <button
-                      className="btn-done"
+                      className="serving-btn-done"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleMarkDone(currentServingPatient._id);
@@ -999,7 +979,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', marginBottom: '14px', fontSize: '13px' }}>
+                <div style={{ padding: '24px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', marginBottom: '14px', fontSize: '13px', border: '1px solid var(--border)' }}>
                   No patient is currently being served. Click "Next Up 🚀" next to a patient in the queue to start serving them.
                 </div>
               )}
@@ -1012,13 +992,13 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       <div className="tkbadge" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
                         {patient.tokenNumber}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div className="qi-name">{patient.patientName}</div>
-                        <div className="qi-det">
+                      <div style={{ flex: 1, minWidth: 0, paddingRight: '4px' }}>
+                        <div className="qi-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{patient.patientName}</div>
+                        <div className="qi-det" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {patient.visitType === 'new' ? 'New' : 'BP Follow-up'} · {patient.slot} · {patient.complaints?.join(', ') || 'Consultation'}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span
                           className="pill pa"
                           onClick={(e) => {
@@ -1636,7 +1616,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           {/* Cancel Slots / Clear queue button */}
                           <button
                             className="act-btn danger"
-                            onClick={() => confirm(`Cancel remaining slots for ${doc.name}?`) && alert('Slots cancelled. Patient WhatsApp notifications dispatched.')}
+                            onClick={async () => {
+                              if (window.confirm(`Are you sure you want to cancel all remaining waiting slots for ${doc.name}? All waiting patients will be marked as cancelled.`)) {
+                                await handleAdminAction({ action: 'cancelDoctorSlots', doctorName: doc.name });
+                                alert(`Remaining waiting slots for ${doc.name} have been cancelled.`);
+                              }
+                            }}
                             style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
                           >
                             <div className="act-icon" style={{ background: 'var(--red-light)', fontSize: '12px', width: '22px', height: '22px', lineHeight: '22px' }}>❌</div>

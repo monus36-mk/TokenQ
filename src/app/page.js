@@ -1147,7 +1147,7 @@ export default function Home() {
         </div>
       ) : (
         /* ===== ADMIN WORKFLOW ===== */
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', maxWidth: '1000px', margin: '0 auto', background: 'var(--surface)', minHeight: '100vh', boxShadow: '0 0 20px rgba(0,0,0,0.05)' }}>
+        <div className="patient-layout-wrap">
           <AdminDashboard
             clinics={clinics}
             bookings={bookings}

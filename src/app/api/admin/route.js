@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
-import { updateMockBookingStatus, updateMockBookingNotes, addMockClinicalEntry, deleteMockClinicalEntry } from '@/lib/mockData';
+import { updateMockBookingStatus, updateMockBookingNotes, addMockClinicalEntry, deleteMockClinicalEntry, cancelMockDoctorSlots } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -241,10 +241,32 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Booking record not found' }, { status: 404 });
       }
 
+      // Cancel all remaining waiting slots/bookings for a doctor (or clinic)
+      if (action === 'cancelDoctorSlots') {
+        const filter = { clinicId, status: 'waiting' };
+        if (doctorName) {
+          filter.doctorName = doctorName;
+        }
+        const result = await Booking.updateMany(
+          filter,
+          { $set: { status: 'cancelled' } }
+        );
+        return NextResponse.json({
+          success: true,
+          modifiedCount: result.modifiedCount,
+          message: `Cancelled ${result.modifiedCount} waiting slots for ${doctorName || 'doctor'}`,
+          source: 'database'
+        });
+      }
+
       return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
 
     } catch (dbError) {
       console.warn('Database Admin Action error, checking mock fallback:', dbError.message);
+      if (action === 'cancelDoctorSlots') {
+        const count = cancelMockDoctorSlots(clinicId, doctorName);
+        return NextResponse.json({ success: true, modifiedCount: count, source: 'mock' });
+      }
       if (action === 'updateBookingNotes') {
         const booking = updateMockBookingNotes(bookingId, prescription, clinicalNotes);
         return NextResponse.json({ success: true, data: booking, source: 'mock' });
