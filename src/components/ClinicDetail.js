@@ -39,17 +39,67 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
     : reviews;
   const visibleReviews = showAllReviews ? filteredReviews : filteredReviews.slice(0, 2);
 
+  const [isSaved, setIsSaved] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tokenq_saved_clinics');
+      const list = saved ? JSON.parse(saved) : [];
+      return list.includes(clinic._id);
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const toggleSaveClinic = () => {
+    try {
+      const saved = localStorage.getItem('tokenq_saved_clinics');
+      let list = saved ? JSON.parse(saved) : [];
+      if (list.includes(clinic._id)) {
+        list = list.filter(id => id !== clinic._id);
+        setIsSaved(false);
+      } else {
+        list.push(clinic._id);
+        setIsSaved(true);
+      }
+      localStorage.setItem('tokenq_saved_clinics', JSON.stringify(list));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '20px', overflowY: 'auto', maxHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', maxWidth: '1280px', margin: '0 auto', padding: '20px 24px' }}>
       
       {/* HERO (detail page) */}
       <div className="hero" style={{ borderRadius: 'var(--radius)', marginBottom: '24px' }}>
-        <div className="topbar" style={{ background: 'transparent', border: 'none', padding: '0 0 13px', color: 'white' }}>
-          <div className="back-btn" style={{ background: 'rgba(255,255,255,.12)', borderColor: 'rgba(255,255,255,.2)', color: 'white' }} onClick={onBack}>←</div>
-          <div className="topbar-title" style={{ color: 'white' }}>Clinic details</div>
-          <span className={`pill ${!isClinicOpen(clinic) ? 'pr' : 'pg'}`} style={{ fontSize: '11px' }}>
-            {!isClinicOpen(clinic) ? 'Closed' : 'Open'}
-          </span>
+        <div className="topbar" style={{ background: 'transparent', border: 'none', padding: '0 0 13px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="back-btn" style={{ background: 'rgba(255,255,255,.12)', borderColor: 'rgba(255,255,255,.2)', color: 'white' }} onClick={onBack}>←</div>
+            <div className="topbar-title" style={{ color: 'white' }}>Clinic details</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={toggleSaveClinic}
+              title={isSaved ? "Saved clinic" : "Save this clinic"}
+              style={{
+                background: isSaved ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,.15)',
+                border: isSaved ? '1px solid #f87171' : '1px solid rgba(255,255,255,.25)',
+                color: 'white',
+                borderRadius: '8px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              {isSaved ? '❤️ Saved' : '🤍 Save'}
+            </button>
+            <span className={`pill ${!isClinicOpen(clinic) ? 'pr' : 'pg'}`} style={{ fontSize: '11px' }}>
+              {!isClinicOpen(clinic) ? 'Closed' : 'Open'}
+            </span>
+          </div>
         </div>
         <div className="hero-row">
           <div className="hero-icon" style={{ padding: clinic.profilePic ? 0 : '', overflow: 'hidden' }}>

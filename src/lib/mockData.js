@@ -240,14 +240,22 @@ export function updateMockBookingStatus(id, status) {
   return bookings.find(b => b._id === id);
 }
 
-export function updateMockBookingNotes(id, prescription, clinicalNotes) {
-  bookings = bookings.map(b => b._id === id ? { ...b, prescription: prescription || '', clinicalNotes: clinicalNotes || '' } : b);
+export function updateMockBookingNotes(id, prescription, clinicalNotes, followUpDate, followUpNotes, medicines) {
+  bookings = bookings.map(b => b._id === id ? {
+    ...b,
+    prescription: prescription || '',
+    clinicalNotes: clinicalNotes || '',
+    followUpDate: followUpDate ? new Date(followUpDate) : null,
+    followUpNotes: followUpNotes || '',
+    medicines: medicines || [],
+    prescriptionSentAt: new Date()
+  } : b);
   return bookings.find(b => b._id === id);
 }
 
-export function addMockClinicalEntry({ clinicId, patientName, patientPhone, patientAge, patientGender, doctorName, clinicalNotes, prescription, bookingId, isNewRecord }) {
+export function addMockClinicalEntry({ clinicId, patientName, patientPhone, patientAge, patientGender, doctorName, clinicalNotes, prescription, followUpDate, followUpNotes, medicines, bookingId, isNewRecord }) {
   if (bookingId && !isNewRecord) {
-    return updateMockBookingNotes(bookingId, prescription, clinicalNotes);
+    return updateMockBookingNotes(bookingId, prescription, clinicalNotes, followUpDate, followUpNotes, medicines);
   }
   const newB = {
     _id: 'booking_' + (bookings.length + 1),
@@ -262,6 +270,10 @@ export function addMockClinicalEntry({ clinicId, patientName, patientPhone, pati
     visitType: 'returning',
     clinicalNotes: clinicalNotes || '',
     prescription: prescription || '',
+    medicines: medicines || [],
+    followUpDate: followUpDate ? new Date(followUpDate) : null,
+    followUpNotes: followUpNotes || '',
+    prescriptionSentAt: new Date(),
     createdAt: new Date()
   };
   bookings.unshift(newB);

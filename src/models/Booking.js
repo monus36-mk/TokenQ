@@ -74,6 +74,27 @@ const BookingSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  medicines: [
+    {
+      name: { type: String, default: '' },
+      dosage: { type: String, default: '1-0-1' }, // e.g. 1-0-1, 1-0-0, 0-0-1, 1-1-1
+      timing: { type: String, default: 'After Food' }, // 'After Food', 'Before Food', 'With Food'
+      duration: { type: String, default: '5 Days' }, // '3 Days', '5 Days', '7 Days', etc.
+      instructions: { type: String, default: '' }
+    }
+  ],
+  followUpDate: {
+    type: Date,
+    required: false,
+  },
+  followUpNotes: {
+    type: String,
+    default: '',
+  },
+  prescriptionSentAt: {
+    type: Date,
+    required: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

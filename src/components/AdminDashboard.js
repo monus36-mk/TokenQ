@@ -12,7 +12,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  const getPrescriptionWhatsAppLink = (phone, patientName, prescription, clinicalNotes) => {
+  const getPrescriptionWhatsAppLink = (phone, patientName, prescription, clinicalNotes, medicines = [], followUpDate = null, followUpNotes = '') => {
     if (!phone) return '#';
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
@@ -23,17 +23,47 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     message += `Date: *${new Date().toLocaleDateString('en-IN')}*\n\n`;
 
     if (clinicalNotes) {
-      message += `*Diagnosis/Clinical Notes:*\n${clinicalNotes}\n\n`;
+      message += `*📋 Diagnosis & Clinical Notes:*\n${clinicalNotes}\n\n`;
     }
 
-    if (prescription) {
-      message += `*Rx (Prescription):*\n${prescription}\n\n`;
+    if (medicines && medicines.length > 0) {
+      message += `*💊 Prescribed Medicines (Rx):*\n`;
+      medicines.forEach((m, idx) => {
+        message += `${idx + 1}. *${m.name}* — ${m.dosage || '1-0-1'} (${m.timing || 'After Food'}), ${m.duration || '5 Days'}${m.instructions ? ` [${m.instructions}]` : ''}\n`;
+      });
+      message += `\n`;
+    } else if (prescription) {
+      message += `*💊 Rx (Prescription):*\n${prescription}\n\n`;
     } else {
-      message += `*Rx (Prescription):*\nGeneral Consultation - Follow advice.\n\n`;
+      message += `*💊 Rx (Prescription):*\nGeneral Consultation - Follow advice.\n\n`;
     }
 
-    message += `Get well soon!`;
+    if (followUpDate) {
+      const fDate = new Date(followUpDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      message += `*⏰ Next Follow-up Checkup:* ${fDate}\n`;
+      if (followUpNotes) message += `*Advice:* ${followUpNotes}\n`;
+      message += `\n`;
+    }
+
+    message += `Get well soon!\n_TokenQ Smart Healthcare_`;
     return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const getFollowUpReminderWhatsAppLink = (phone, patientName, doctorName, followUpDate, followUpNotes) => {
+    if (!phone) return '#';
+    const cleanPhone = phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const fDate = new Date(followUpDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+    let msg = `⏰ *Follow-up Checkup Reminder*\n\n`;
+    msg += `Dear *${patientName}*,\n`;
+    msg += `This is a reminder from *${clinic.name || 'Clinic'}* that your scheduled follow-up checkup with *Dr. ${doctorName || 'Doctor'}* is on *${fDate}*.\n\n`;
+    if (followUpNotes) {
+      msg += `*Doctor's Instructions:* ${followUpNotes}\n\n`;
+    }
+    msg += `Please book your token early on TokenQ or visit the clinic.\n\n`;
+    msg += `Wish you great health!\n_${clinic.name || 'TokenQ Clinic'}_`;
+    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   const normalizePhone = (phone) => {
@@ -47,21 +77,63 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   const [currentNotes, setCurrentNotes] = useState('');
   const [currentPrescription, setCurrentPrescription] = useState('');
+  const [currentMedicines, setCurrentMedicines] = useState([]);
+  const [currentFollowUpDate, setCurrentFollowUpDate] = useState('');
+  const [currentFollowUpNotes, setCurrentFollowUpNotes] = useState('');
+  const [currentPatientEmail, setCurrentPatientEmail] = useState('');
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+  const [followUpFilter, setFollowUpFilter] = useState('all'); // 'all', 'today', 'week', 'upcoming', 'overdue'
+
+  const setQuickFollowUp = (days) => {
+    if (!days) {
+      setCurrentFollowUpDate('');
+      return;
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + Number(days));
+    setCurrentFollowUpDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleAddMedicineRow = () => {
+    setCurrentMedicines(prev => [
+      ...prev,
+      { name: '', dosage: '1-0-1', timing: 'After Food', duration: '5 Days', instructions: '' }
+    ]);
+  };
+
+  const handleRemoveMedicineRow = (index) => {
+    setCurrentMedicines(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMedicineChange = (index, field, value) => {
+    setCurrentMedicines(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
 
   useEffect(() => {
     if (viewingPatient) {
-      setCurrentNotes('');
-      setCurrentPrescription('');
-      setEditingRecordId(null);
+      setCurrentNotes(viewingPatient.clinicalNotes || '');
+      setCurrentPrescription(viewingPatient.prescription || '');
+      setCurrentMedicines(viewingPatient.medicines && Array.isArray(viewingPatient.medicines) ? viewingPatient.medicines : []);
+      setCurrentFollowUpDate(viewingPatient.followUpDate ? new Date(viewingPatient.followUpDate).toISOString().split('T')[0] : '');
+      setCurrentFollowUpNotes(viewingPatient.followUpNotes || '');
+      setCurrentPatientEmail(viewingPatient.patientEmail || viewingPatient.email || '');
+      setEditingRecordId(viewingPatient._id);
       setExpandedHistoryId(null);
     } else {
       setCurrentNotes('');
       setCurrentPrescription('');
+      setCurrentMedicines([]);
+      setCurrentFollowUpDate('');
+      setCurrentFollowUpNotes('');
+      setCurrentPatientEmail('');
       setEditingRecordId(null);
       setExpandedHistoryId(null);
     }
@@ -348,13 +420,13 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   const handleSaveNotes = async (silent = false) => {
     if (!viewingPatient) return;
-    if (!currentNotes.trim() && !currentPrescription.trim()) {
-      alert('Please enter clinical notes or a prescription to save.');
+    const validMeds = currentMedicines.filter(m => m.name && m.name.trim());
+    if (!currentNotes.trim() && !currentPrescription.trim() && validMeds.length === 0 && !currentFollowUpDate) {
+      alert('Please enter clinical notes, medicines, or follow-up details to save.');
       return;
     }
     setIsSavingNotes(true);
     try {
-      const isNewRecord = !editingRecordId && Boolean(viewingPatient.clinicalNotes || viewingPatient.prescription);
       const targetBookingId = editingRecordId || viewingPatient._id;
 
       const res = await fetch('/api/admin', {
@@ -364,29 +436,40 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           action: 'addClinicalEntry',
           clinicId: viewingPatient.clinicId || clinic._id || selectedClinicId,
           bookingId: targetBookingId,
-          isNewRecord: isNewRecord,
+          isNewRecord: false,
           patientName: viewingPatient.patientName,
           patientPhone: viewingPatient.patientPhone,
           patientAge: viewingPatient.patientAge,
           patientGender: viewingPatient.patientGender,
           doctorName: viewingPatient.doctorName || clinic.doctorName,
           clinicalNotes: currentNotes,
-          prescription: currentPrescription
+          prescription: currentPrescription,
+          medicines: validMeds,
+          followUpDate: currentFollowUpDate || null,
+          followUpNotes: currentFollowUpNotes || '',
+          patientEmail: currentPatientEmail || ''
         })
       });
       const json = await res.json();
       if (json.success) {
         if (!silent) {
           setShowSavedFeedback(true);
-          setTimeout(() => setShowSavedFeedback(false), 3000);
+          setTimeout(() => setShowSavedFeedback(false), 3500);
         }
 
-        // Erase/reset editor fields so doctor can do another entry immediately
-        setCurrentNotes('');
-        setCurrentPrescription('');
-        setEditingRecordId(null);
+        // Update viewingPatient in local state so modal updates instantly
+        setViewingPatient(prev => prev ? {
+          ...prev,
+          clinicalNotes: currentNotes,
+          prescription: currentPrescription,
+          medicines: validMeds,
+          followUpDate: currentFollowUpDate || null,
+          followUpNotes: currentFollowUpNotes || ''
+        } : null);
 
-        onRefresh();
+        setEditingRecordId(targetBookingId);
+
+        if (onRefresh) onRefresh();
       } else {
         alert('Failed to save record: ' + json.error);
       }
@@ -697,6 +780,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 onClick={() => setActiveTab('patients')}
               >
                 Patient History
+              </div>
+              <div
+                className={`atab ${activeTab === 'reminders' ? 'active' : ''}`}
+                onClick={() => setActiveTab('reminders')}
+              >
+                ⏰ Reminders ({clinicBookings.filter(b => b.followUpDate).length})
               </div>
               <div
                 className={`atab ${activeTab === 'controls' ? 'active' : ''}`}
@@ -1218,6 +1307,190 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           >
                             📄 Open File
                           </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* FOLLOW-UP CHECKUP REMINDERS TAB */}
+          {activeTab === 'reminders' && !isProfileIncomplete && (() => {
+            const allFollowUpBookings = clinicBookings
+              .filter(b => b.followUpDate)
+              .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+            const weekEnd = new Date();
+            weekEnd.setDate(weekEnd.getDate() + 7);
+
+            const filteredFollowUps = allFollowUpBookings.filter(b => {
+              const fDate = new Date(b.followUpDate);
+              if (followUpFilter === 'today') {
+                return fDate >= todayStart && fDate <= todayEnd;
+              }
+              if (followUpFilter === 'week') {
+                return fDate >= todayStart && fDate <= weekEnd;
+              }
+              if (followUpFilter === 'overdue') {
+                return fDate < todayStart;
+              }
+              return true; // 'all'
+            });
+
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
+                      Scheduled Follow-up Checkups
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text2)' }}>
+                      Track upcoming patient checkups and send automated reminders
+                    </div>
+                  </div>
+                  <span className="pill pg" style={{ fontWeight: 700 }}>
+                    {allFollowUpBookings.length} Scheduled Total
+                  </span>
+                </div>
+
+                {/* Filter Pills */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  <button
+                    className={`cat-pill ${followUpFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setFollowUpFilter('all')}
+                  >
+                    All ({allFollowUpBookings.length})
+                  </button>
+                  <button
+                    className={`cat-pill ${followUpFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => setFollowUpFilter('today')}
+                  >
+                    🔔 Due Today ({allFollowUpBookings.filter(b => {
+                      const d = new Date(b.followUpDate);
+                      return d >= todayStart && d <= todayEnd;
+                    }).length})
+                  </button>
+                  <button
+                    className={`cat-pill ${followUpFilter === 'week' ? 'active' : ''}`}
+                    onClick={() => setFollowUpFilter('week')}
+                  >
+                    📅 This Week ({allFollowUpBookings.filter(b => {
+                      const d = new Date(b.followUpDate);
+                      return d >= todayStart && d <= weekEnd;
+                    }).length})
+                  </button>
+                  <button
+                    className={`cat-pill ${followUpFilter === 'overdue' ? 'active' : ''}`}
+                    onClick={() => setFollowUpFilter('overdue')}
+                  >
+                    ⚠️ Overdue ({allFollowUpBookings.filter(b => new Date(b.followUpDate) < todayStart).length})
+                  </button>
+                </div>
+
+                {/* List */}
+                {filteredFollowUps.length === 0 ? (
+                  <div style={{ padding: '36px 20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)' }}>
+                    <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>⏰</span>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>No follow-up checkups found for this filter</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px' }}>When you set a follow-up date while consulting patients, it will appear here.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {filteredFollowUps.map((booking) => {
+                      const fDate = new Date(booking.followUpDate);
+                      const daysLeft = Math.ceil((fDate - new Date()) / (1000 * 60 * 60 * 24));
+                      const isDueToday = daysLeft === 0;
+                      const isOverdue = daysLeft < 0;
+
+                      return (
+                        <div
+                          key={booking._id}
+                          className="card"
+                          style={{
+                            border: isDueToday ? '1.5px solid var(--amber)' : isOverdue ? '1.5px solid var(--red)' : '1px solid var(--border)',
+                            padding: '14px',
+                            background: 'var(--surface)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div>
+                              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                                {booking.patientName}
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+                                📱 {booking.patientPhone || 'No phone'} · {booking.patientAge} yrs · Dr. {booking.doctorName}
+                              </div>
+                            </div>
+                            <span className={`pill ${isOverdue ? 'pr' : isDueToday ? 'pa' : 'pg'}`} style={{ fontWeight: 700, fontSize: '11px' }}>
+                              {isOverdue ? 'Overdue' : isDueToday ? '🔔 Due Today!' : `In ${daysLeft} days`}
+                            </span>
+                          </div>
+
+                          <div style={{ background: 'var(--surface2)', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text2)' }}>Scheduled Date:</span>
+                              <strong style={{ color: 'var(--text)' }}>{fDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+                            </div>
+                            {booking.followUpNotes && (
+                              <div style={{ marginTop: '4px', color: 'var(--text)' }}>
+                                <span style={{ color: 'var(--text2)' }}>Advice: </span> {booking.followUpNotes}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {booking.patientPhone && (
+                              <a
+                                href={getFollowUpReminderWhatsAppLink(
+                                  booking.patientPhone,
+                                  booking.patientName,
+                                  booking.doctorName,
+                                  booking.followUpDate,
+                                  booking.followUpNotes
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  flex: 1,
+                                  background: '#25D366',
+                                  color: 'white',
+                                  padding: '8px 12px',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                💬 Send WhatsApp Reminder
+                              </a>
+                            )}
+                            <button
+                              onClick={() => setViewingPatient(booking)}
+                              style={{
+                                background: 'var(--surface2)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text)',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              👁️ View Patient / Rx
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1857,7 +2130,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
         </div>
       </div>
 
-      {/* Patient EMR Details Modal */}
+      {/* Patient EMR Details & Consultation Modal */}
       {viewingPatient && (
         <div style={{
           position: 'fixed',
@@ -1865,117 +2138,65 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(3px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '20px'
+          padding: '16px'
         }} onClick={() => setViewingPatient(null)}>
-          <div style={{
-            background: 'var(--surface)',
-            borderRadius: 'var(--radius)',
-            width: '100%',
-            maxWidth: '480px',
-            padding: '24px',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-            position: 'relative'
-          }} onClick={(e) => e.stopPropagation()}>
-
+          <div
+            className="admin-consult-modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span className="pill pg" style={{ fontSize: '11px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span className="pill pg" style={{ fontSize: '11px', fontWeight: 700 }}>
                     Token {viewingPatient.tokenNumber}
                   </span>
                   <span style={{ fontSize: '12px', color: 'var(--text2)', fontWeight: 600 }}>
                     📅 {new Date(viewingPatient.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
+                  <span className="pill" style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    background: viewingPatient.status === 'serving' ? 'var(--blue-light)' : viewingPatient.status === 'done' ? 'var(--green-light)' : 'var(--amber-light)',
+                    color: viewingPatient.status === 'serving' ? 'var(--blue)' : viewingPatient.status === 'done' ? 'var(--green-dark)' : 'var(--amber-dark)'
+                  }}>
+                    {viewingPatient.status ? viewingPatient.status.toUpperCase() : 'WAITING'}
+                  </span>
                 </div>
-                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
+                <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text)' }}>
                   {viewingPatient.patientName}
                 </h3>
               </div>
               <button
                 onClick={() => setViewingPatient(null)}
                 style={{
-                  background: 'none',
+                  background: 'var(--surface2)',
                   border: 'none',
-                  fontSize: '20px',
+                  fontSize: '18px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer',
-                  color: 'var(--text3)'
+                  color: 'var(--text2)',
+                  fontWeight: 600
                 }}
+                title="Close Modal"
               >
                 ✕
               </button>
             </div>
 
-            {/* Content Details */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Age / Gender</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
-                    {viewingPatient.patientAge || '—'} yrs · {viewingPatient.patientGender === 'M' ? 'Male' : viewingPatient.patientGender === 'F' ? 'Female' : 'Other'}
-                  </div>
-                </div>
-                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Visit Type</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px', textTransform: 'capitalize' }}>
-                    {viewingPatient.visitType || 'new'} Patient
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Contact Number</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
-                  {viewingPatient.patientPhone || '—'}
-                </div>
-              </div>
-
-              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Chief Complaints</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                  {viewingPatient.complaints && viewingPatient.complaints.length > 0 ? (
-                    viewingPatient.complaints.map(c => (
-                      <span key={c} style={{ background: 'var(--green-light)', color: 'var(--green-dark)', padding: '3px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 500 }}>
-                        {c}
-                      </span>
-                    ))
-                  ) : (
-                    <span style={{ fontSize: '13px', color: 'var(--text2)' }}>General Consultation</span>
-                  )}
-                </div>
-              </div>
-
-              {viewingPatient.describeComplaint && (
-                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Description / Notes</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '4px', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
-                    {viewingPatient.describeComplaint}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Current Medications</div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: viewingPatient.medication === 'yes' ? 'var(--amber-dark)' : 'var(--text2)', marginTop: '4px' }}>
-                  {viewingPatient.medication === 'yes' ? '⚠️ Taking existing medications (Review required)' : 'None'}
-                </div>
-              </div>
-
-              {viewingPatient.severity && (
-                <div style={{ background: 'var(--surface2)', padding: '10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Severity Level</div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: viewingPatient.severity.toLowerCase().includes('severe') ? 'var(--red)' : viewingPatient.severity.toLowerCase().includes('moderate') ? 'var(--amber)' : 'var(--green-dark)', marginTop: '4px' }}>
-                    {viewingPatient.severity}
-                  </div>
-                </div>
-              )}
-
-              {/* Doctor's EMR Notes & Prescription Editor */}
+            {/* Main Scrollable Consultation Workspace */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', marginBottom: '16px' }}>
               {(() => {
                 const allPatientHistory = bookings.filter(b =>
                   String(b.clinicId) === String(viewingPatient.clinicId || clinic._id || selectedClinicId) &&
@@ -1986,137 +2207,412 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 const pastClinicalBooking = allPatientHistory.find(b => (b.clinicalNotes || b.prescription) && String(b._id) !== String(editingRecordId));
 
                 return (
-                  <>
-                    <div style={{
-                      border: editingRecordId ? '1.5px solid var(--amber-dark)' : '1.5px solid var(--green-mid)',
-                      background: editingRecordId ? 'rgba(245, 158, 11, 0.03)' : 'rgba(29, 158, 117, 0.02)',
-                      borderRadius: '8px',
-                      padding: '14px',
-                      marginTop: '6px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '16px' }}>🩺</span>
-                          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: editingRecordId ? 'var(--amber-dark)' : 'var(--green-dark)' }}>
-                            {editingRecordId ? 'Edit Clinical Record' : "Doctor's Clinical Entry (New Entry)"}
-                          </h4>
-                          <span className={`pill ${editingRecordId ? 'pa' : 'pg'}`} style={{ fontSize: '10px' }}>
-                            {editingRecordId ? '✏️ Editing Record' : '➕ New Entry'}
-                          </span>
-                        </div>
-                        {editingRecordId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingRecordId(null);
-                              setCurrentNotes('');
-                              setCurrentPrescription('');
-                            }}
-                            style={{
-                              background: 'var(--surface)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '4px',
-                              padding: '3px 8px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              color: 'var(--text2)',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            + Switch to New Entry
-                          </button>
-                        )}
-                      </div>
-
-                      {pastClinicalBooking && !currentNotes && !currentPrescription && !editingRecordId && (
-                        <div style={{
-                          background: 'rgba(29, 158, 117, 0.08)',
-                          border: '1px dashed var(--green)',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          fontSize: '11px',
-                          color: 'var(--green-dark)'
-                        }}>
-                          <div style={{ flex: 1, paddingRight: '8px' }}>
-                            💡 <strong>Past Rx on file ({new Date(pastClinicalBooking.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}):</strong> {pastClinicalBooking.prescription ? pastClinicalBooking.prescription.slice(0, 45) + '...' : 'Clinical notes on file'}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {/* TWO COLUMN CLINICAL WORKSPACE */}
+                    <div className="admin-consult-grid">
+                      
+                      {/* LEFT COLUMN: Patient Info, Chief Complaints & Clinical Assessment */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        
+                        {/* Patient Profile Card */}
+                        <div style={{ background: 'var(--surface2)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                            <div>
+                              <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 600 }}>Age / Gender</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
+                                {viewingPatient.patientAge || '—'} yrs · {viewingPatient.patientGender === 'M' ? 'Male' : viewingPatient.patientGender === 'F' ? 'Female' : 'Other'}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 600 }}>Visit Type</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginTop: '2px', textTransform: 'capitalize' }}>
+                                {viewingPatient.visitType || 'new'} Patient
+                              </div>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (pastClinicalBooking.clinicalNotes) setCurrentNotes(pastClinicalBooking.clinicalNotes);
-                              if (pastClinicalBooking.prescription) setCurrentPrescription(pastClinicalBooking.prescription);
-                            }}
-                            style={{
-                              background: 'var(--green)',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px 8px',
-                              fontSize: '10px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Copy to Editor 📋
-                          </button>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                              <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 600 }}>Contact Number</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
+                                {viewingPatient.patientPhone || '—'}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 600 }}>Severity</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: (viewingPatient.severity || '').toLowerCase().includes('severe') ? 'var(--red)' : (viewingPatient.severity || '').toLowerCase().includes('moderate') ? 'var(--amber)' : 'var(--green-dark)', marginTop: '2px' }}>
+                                {viewingPatient.severity || 'Normal'}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      )}
 
-                      <div className="fg" style={{ margin: 0 }}>
-                        <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', fontWeight: 600 }}>Clinical Notes & Diagnosis</label>
-                        <textarea
-                          rows={3}
-                          placeholder="Enter examination findings, symptoms, diagnosis (e.g. BP: 130/85, Clear lungs, viral fever)"
-                          value={currentNotes}
-                          onChange={(e) => setCurrentNotes(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: '6px',
-                            border: '1.5px solid var(--border2)',
-                            background: 'var(--surface)',
-                            color: 'var(--text)',
-                            fontFamily: 'inherit',
-                            fontSize: '13px',
-                            resize: 'vertical',
-                            outline: 'none',
-                            marginTop: '4px'
-                          }}
-                        />
+                        {/* Chief Complaints & Symptoms */}
+                        <div style={{ background: 'var(--surface2)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
+                            🤒 Reported Symptoms & Complaints
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {viewingPatient.complaints && viewingPatient.complaints.length > 0 ? (
+                              viewingPatient.complaints.map(c => (
+                                <span key={c} style={{ background: 'var(--green-light)', color: 'var(--green-dark)', padding: '3px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 600 }}>
+                                  {c}
+                                </span>
+                              ))
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'var(--text2)' }}>General Consultation</span>
+                            )}
+                          </div>
+
+                          {viewingPatient.describeComplaint && (
+                            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border2)', fontSize: '12.5px', color: 'var(--text)', lineHeight: '1.45', whiteSpace: 'pre-wrap' }}>
+                              <strong>Patient Note:</strong> {viewingPatient.describeComplaint}
+                            </div>
+                          )}
+
+                          {viewingPatient.medication === 'yes' && (
+                            <div style={{ marginTop: '8px', fontSize: '11.5px', color: 'var(--amber-dark)', background: 'var(--amber-light)', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                              ⚠️ Taking existing medications (Review recommended)
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Doctor's Clinical Diagnosis & Findings Editor */}
+                        <div style={{
+                          border: editingRecordId ? '1.5px solid var(--amber-dark)' : '1.5px solid var(--green-mid)',
+                          background: editingRecordId ? 'rgba(245, 158, 11, 0.03)' : 'rgba(29, 158, 117, 0.03)',
+                          borderRadius: '10px',
+                          padding: '14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '15px' }}>📋</span>
+                              <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: editingRecordId ? 'var(--amber-dark)' : 'var(--green-dark)' }}>
+                                {editingRecordId ? 'Edit Clinical Diagnosis' : 'Clinical Notes & Diagnosis'}
+                              </h4>
+                            </div>
+                            {editingRecordId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingRecordId(null);
+                                  setCurrentNotes('');
+                                  setCurrentPrescription('');
+                                  setCurrentMedicines([]);
+                                  setCurrentFollowUpDate('');
+                                  setCurrentFollowUpNotes('');
+                                }}
+                                style={{
+                                  background: 'var(--surface)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: '4px',
+                                  padding: '3px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  color: 'var(--text2)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                + New Entry
+                              </button>
+                            )}
+                          </div>
+
+                          {pastClinicalBooking && !currentNotes && !currentPrescription && !editingRecordId && (
+                            <div style={{
+                              background: 'rgba(29, 158, 117, 0.08)',
+                              border: '1px dashed var(--green)',
+                              borderRadius: '6px',
+                              padding: '8px 10px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: '11px',
+                              color: 'var(--green-dark)'
+                            }}>
+                              <div style={{ flex: 1, paddingRight: '6px' }}>
+                                💡 <strong>Past Rx ({new Date(pastClinicalBooking.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}):</strong> {pastClinicalBooking.prescription ? pastClinicalBooking.prescription.slice(0, 35) + '...' : 'Notes available'}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (pastClinicalBooking.clinicalNotes) setCurrentNotes(pastClinicalBooking.clinicalNotes);
+                                  if (pastClinicalBooking.prescription) setCurrentPrescription(pastClinicalBooking.prescription);
+                                  if (pastClinicalBooking.medicines) setCurrentMedicines(pastClinicalBooking.medicines);
+                                  if (pastClinicalBooking.followUpDate) setCurrentFollowUpDate(new Date(pastClinicalBooking.followUpDate).toISOString().split('T')[0]);
+                                  if (pastClinicalBooking.followUpNotes) setCurrentFollowUpNotes(pastClinicalBooking.followUpNotes);
+                                }}
+                                style={{
+                                  background: 'var(--green)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '10.5px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                Copy 📋
+                              </button>
+                            </div>
+                          )}
+
+                          <div>
+                            <textarea
+                              rows={4}
+                              placeholder="Enter doctor's examination findings, clinical diagnosis, symptoms, BP/vitals (e.g. BP: 120/80, viral fever, throat infection)..."
+                              value={currentNotes}
+                              onChange={(e) => setCurrentNotes(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1.5px solid var(--border2)',
+                                background: 'var(--surface)',
+                                color: 'var(--text)',
+                                fontFamily: 'inherit',
+                                fontSize: '13px',
+                                resize: 'vertical',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                minHeight: '90px'
+                              }}
+                            />
+                          </div>
+                        </div>
+
                       </div>
 
-                      <div className="fg" style={{ margin: 0 }}>
-                        <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', fontWeight: 600 }}>Prescription & Treatment Plan</label>
-                        <textarea
-                          rows={3}
-                          placeholder="Enter prescribed medicines & instructions (e.g. Paracetamol 650mg TDS x 3 days)"
-                          value={currentPrescription}
-                          onChange={(e) => setCurrentPrescription(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: '6px',
-                            border: '1.5px solid var(--border2)',
-                            background: 'var(--surface)',
-                            color: 'var(--text)',
-                            fontFamily: 'inherit',
-                            fontSize: '13px',
-                            resize: 'vertical',
-                            outline: 'none',
-                            marginTop: '4px'
-                          }}
-                        />
-                      </div>
+                      {/* RIGHT COLUMN: Digital Prescription (Rx) & Follow-up Plan */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        
+                        {/* Digital Prescription Builder */}
+                        <div style={{
+                          border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                          background: 'var(--surface)',
+                          borderRadius: '10px',
+                          padding: '14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--green-dark)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '16px' }}>℞</span> Prescribed Medicines (Digital Rx)
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleAddMedicineRow}
+                              style={{
+                                background: 'var(--green-light)',
+                                color: 'var(--green-dark)',
+                                border: '1px solid var(--green)',
+                                borderRadius: '6px',
+                                padding: '4px 10px',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              + Add Medicine
+                            </button>
+                          </div>
 
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '12px' }}>
+                          {currentMedicines.length > 0 && (
+                            <div className="admin-rx-med-header">
+                              <div>Medicine Name</div>
+                              <div>Dosage</div>
+                              <div>Timing</div>
+                              <div>Duration</div>
+                              <div></div>
+                            </div>
+                          )}
+
+                          {currentMedicines.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '16px 10px', color: 'var(--text3)', fontSize: '12.5px', background: 'var(--surface2)', borderRadius: '6px', border: '1px dashed var(--border2)' }}>
+                              No medicines added. Click <strong style={{ color: 'var(--green-dark)' }}>+ Add Medicine</strong> above or type instructions below.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {/* Datalist suggestions for fast auto-complete & manual typing */}
+                              <datalist id="dosage-options">
+                                <option value="1-0-1 (M-N)" />
+                                <option value="1-0-0 (Morning)" />
+                                <option value="0-0-1 (Night)" />
+                                <option value="1-1-1 (TDS - 3 times)" />
+                                <option value="2-0-2 (2 tabs M-N)" />
+                                <option value="2 tabs (Once daily)" />
+                                <option value="1-0-0-1 (4 times)" />
+                                <option value="SOS (As needed)" />
+                                <option value="1/2 tab" />
+                                <option value="5 ml" />
+                                <option value="10 ml" />
+                                <option value="1 puff" />
+                                <option value="2 drops" />
+                                <option value="Apply 2 times daily" />
+                              </datalist>
+
+                              <datalist id="timing-options">
+                                <option value="After Food" />
+                                <option value="Before Food" />
+                                <option value="With Food" />
+                                <option value="Empty Stomach" />
+                                <option value="At Bedtime" />
+                                <option value="Every 6 Hours" />
+                                <option value="Every 8 Hours" />
+                                <option value="Every 12 Hours" />
+                              </datalist>
+
+                              {currentMedicines.map((med, mIdx) => (
+                                <div key={mIdx} className="admin-rx-med-row">
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Paracetamol 650mg"
+                                    value={med.name}
+                                    onChange={(e) => handleMedicineChange(mIdx, 'name', e.target.value)}
+                                    style={{ padding: '7px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface)', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    list="dosage-options"
+                                    placeholder="e.g. 1-0-1 or 2 tabs"
+                                    value={med.dosage}
+                                    onChange={(e) => handleMedicineChange(mIdx, 'dosage', e.target.value)}
+                                    style={{ padding: '7px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface)', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    list="timing-options"
+                                    placeholder="e.g. After Food"
+                                    value={med.timing}
+                                    onChange={(e) => handleMedicineChange(mIdx, 'timing', e.target.value)}
+                                    style={{ padding: '7px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface)', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. 5 Days"
+                                    value={med.duration}
+                                    onChange={(e) => handleMedicineChange(mIdx, 'duration', e.target.value)}
+                                    style={{ padding: '7px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface)', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMedicineRow(mIdx)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '15px', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    title="Remove Medicine"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div>
+                            <textarea
+                              rows={2}
+                              placeholder="Additional Treatment Notes, dosage instructions or lifestyle guidance..."
+                              value={currentPrescription}
+                              onChange={(e) => setCurrentPrescription(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border2)',
+                                background: 'var(--surface2)',
+                                fontSize: '12px',
+                                fontFamily: 'inherit',
+                                resize: 'vertical',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Follow-up Checkup & Email */}
+                        <div style={{ background: 'var(--surface)', border: '1.5px solid rgba(245, 158, 11, 0.35)', borderRadius: '10px', padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#B45309', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>⏰</span> Auto Follow-up Checkup
+                            </div>
+                            {currentFollowUpDate && (
+                              <button
+                                type="button"
+                                onClick={() => setQuickFollowUp(null)}
+                                style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                              >
+                                ✕ Remove Checkup
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                            <button type="button" className="cat-pill" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => setQuickFollowUp(3)}>+3 Days</button>
+                            <button type="button" className="cat-pill" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => setQuickFollowUp(7)}>+7 Days (1 Wk)</button>
+                            <button type="button" className="cat-pill" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => setQuickFollowUp(14)}>+14 Days (2 Wks)</button>
+                            <button type="button" className="cat-pill" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => setQuickFollowUp(30)}>+1 Month</button>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '8px', alignItems: 'center' }}>
+                            <div>
+                              <label style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Checkup Date</label>
+                              <input
+                                type="date"
+                                value={currentFollowUpDate}
+                                onChange={(e) => setCurrentFollowUpDate(e.target.value)}
+                                style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface2)', fontSize: '12px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Follow-up Advice / Test</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Fasting sugar, review BP"
+                                value={currentFollowUpNotes}
+                                onChange={(e) => setCurrentFollowUpNotes(e.target.value)}
+                                style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface2)', fontSize: '12px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border2)' }}>
+                            <label style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
+                              <span>📧</span> Patient Email (Direct Gmail Delivery):
+                            </label>
+                            <input
+                              type="email"
+                              placeholder="e.g. patient@gmail.com"
+                              value={currentPatientEmail}
+                              onChange={(e) => setCurrentPatientEmail(e.target.value)}
+                              style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border2)', background: 'var(--surface2)', fontSize: '12px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* SAVE & ACTION BUTTONS STRIP */}
+                    <div style={{
+                      background: 'var(--surface2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '10px'
+                    }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           onClick={() => handleSaveNotes(false)}
@@ -2134,23 +2630,58 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                             opacity: isSavingNotes ? 0.7 : 1,
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.15s ease'
+                            gap: '6px'
                           }}
                         >
-                          {isSavingNotes ? '⏳ Saving Record...' : editingRecordId ? '💾 Update Record ✓' : '💾 Save & Add to History ✓'}
+                          {isSavingNotes ? '⏳ Saving...' : editingRecordId ? '💾 Update Record ✓' : '💾 Save & Send Rx to Patient ✓'}
                         </button>
 
-                        {(currentNotes || currentPrescription) && (
+                        {viewingPatient.patientPhone && (
+                          <a
+                            href={getPrescriptionWhatsAppLink(
+                              viewingPatient.patientPhone,
+                              viewingPatient.patientName,
+                              currentPrescription,
+                              currentNotes,
+                              currentMedicines,
+                              currentFollowUpDate,
+                              currentFollowUpNotes
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => handleSaveNotes(true)}
+                            style={{
+                              background: '#25D366',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '9px 14px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            💬 Send to WhatsApp
+                          </a>
+                        )}
+
+                        {(currentNotes || currentPrescription || currentMedicines.length > 0 || currentFollowUpDate) && (
                           <button
                             type="button"
                             onClick={() => {
                               setCurrentNotes('');
                               setCurrentPrescription('');
+                              setCurrentMedicines([]);
+                              setCurrentFollowUpDate('');
+                              setCurrentFollowUpNotes('');
                               setEditingRecordId(null);
                             }}
                             style={{
-                              background: 'var(--surface2)',
+                              background: 'var(--surface)',
                               color: 'var(--text2)',
                               border: '1px solid var(--border)',
                               borderRadius: '6px',
@@ -2164,57 +2695,129 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           </button>
                         )}
 
-                        {viewingPatient.patientPhone && (
-                          <a
-                            href={getPrescriptionWhatsAppLink(
-                              viewingPatient.patientPhone,
-                              viewingPatient.patientName,
-                              currentPrescription,
-                              currentNotes
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() => {
-                              handleSaveNotes(true);
-                            }}
-                            style={{
-                              background: '#25D366',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              padding: '8px 16px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
-                          >
-                            💬 Send to WhatsApp
-                          </a>
-                        )}
-
                         {showSavedFeedback && (
-                          <span style={{
-                            color: 'var(--green-dark)',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            marginLeft: '4px'
-                          }}>
+                          <span style={{ color: 'var(--green-dark)', fontSize: '12px', fontWeight: 600 }}>
                             ✅ Saved to history! Ready for next entry.
                           </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {viewingPatient.patientPhone && (
+                          <>
+                            <a
+                              href={`tel:${viewingPatient.patientPhone}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--green)',
+                                background: 'var(--green-light)',
+                                color: 'var(--green-dark)',
+                                textDecoration: 'none',
+                                fontSize: '12px',
+                                fontWeight: 600
+                              }}
+                            >
+                              📞 Call Phone
+                            </a>
+                            <a
+                              href={getWhatsAppLink(viewingPatient.patientPhone, viewingPatient.patientName, viewingPatient.tokenNumber)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid #2E7D32',
+                                background: '#E8F5E9',
+                                color: '#2E7D32',
+                                textDecoration: 'none',
+                                fontSize: '12px',
+                                fontWeight: 600
+                              }}
+                            >
+                              💬 Chat
+                            </a>
+                          </>
+                        )}
+
+                        {viewingPatient.status === 'waiting' && (
+                          <button
+                            onClick={() => {
+                              handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'serving' });
+                              setViewingPatient(null);
+                            }}
+                            style={{
+                              background: 'var(--green)',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 14px',
+                              borderRadius: '6px',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🚀 Start Serving
+                          </button>
+                        )}
+
+                        {viewingPatient.status === 'serving' && (
+                          <button
+                            onClick={() => {
+                              handleMarkDone(viewingPatient._id);
+                              setViewingPatient(null);
+                            }}
+                            style={{
+                              background: 'var(--blue)',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 14px',
+                              borderRadius: '6px',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✅ Mark Done
+                          </button>
+                        )}
+
+                        {viewingPatient.status !== 'done' && viewingPatient.status !== 'cancelled' && (
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to cancel this booking?')) {
+                                handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'cancelled' });
+                                setViewingPatient(null);
+                              }
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--red)',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              padding: '6px 8px',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Cancel Token
+                          </button>
                         )}
                       </div>
                     </div>
 
                     {/* Patient Clinical & Visit History Section */}
-                    <div style={{ marginTop: '10px', borderTop: '1.5px dashed var(--border2)', paddingTop: '16px' }}>
+                    <div style={{ borderTop: '1.5px dashed var(--border2)', paddingTop: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
                         <span style={{ fontSize: '16px' }}>📜</span>
-                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
                           Patient Clinical & Visit History ({allPatientHistory.length})
                         </h4>
                       </div>
@@ -2244,9 +2847,8 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                               hour: '2-digit',
                               minute: '2-digit'
                             });
-                            const hasItemRecord = Boolean(historyItem.clinicalNotes || historyItem.prescription);
+                            const hasItemRecord = Boolean(historyItem.clinicalNotes || historyItem.prescription || (historyItem.medicines && historyItem.medicines.length > 0));
                             const isCurrentlyEditing = String(historyItem._id) === String(editingRecordId);
-                            const isTodayVisit = String(historyItem._id) === String(viewingPatient._id);
 
                             return (
                               <div
@@ -2275,90 +2877,58 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                                   <div>
                                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                       <span>{dateStr} ({timeStr})</span>
-                                      {isTodayVisit && (
-                                        <span className="pill pg" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                                          Token {historyItem.tokenNumber} (Today)
-                                        </span>
-                                      )}
-                                      {isCurrentlyEditing && (
-                                        <span className="pill pa" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                                          ✏️ Editing in Form
-                                        </span>
-                                      )}
+                                      <span className={`pill ${historyItem.status === 'done' ? 'pg' : historyItem.status === 'cancelled' ? 'pr' : 'pa'}`} style={{ fontSize: '10px' }}>
+                                        Token {historyItem.tokenNumber} · {historyItem.status}
+                                      </span>
                                       {hasItemRecord && (
-                                        <span className="pill pg" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                                          🩺 Rx Attached
+                                        <span className="pill pg" style={{ fontSize: '10px' }}>
+                                          🩺 Rx on file
                                         </span>
                                       )}
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '2px' }}>
-                                      Dr. {historyItem.doctorName} · Token {historyItem.tokenNumber}
-                                    </div>
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span className={`pill ${historyItem.status === 'done' ? 'pg' :
-                                        historyItem.status === 'cancelled' ? 'pr' : 'pa'
-                                      }`} style={{ fontSize: '10px', padding: '2px 8px' }}>
-                                      {historyItem.status}
-                                    </span>
-                                    <span style={{ fontSize: '12px', color: 'var(--text2)' }}>
-                                      {isExpanded ? '▲' : '▼'}
-                                    </span>
-                                  </div>
+                                  <span style={{ fontSize: '12px', color: 'var(--text3)' }}>
+                                    {isExpanded ? '▲ Hide' : '▼ Details'}
+                                  </span>
                                 </div>
 
-                                {/* Details */}
+                                {/* Expanded History Body */}
                                 {isExpanded && (
-                                  <div
-                                    className="history-details-container"
-                                    style={{
-                                      padding: '12px',
-                                      borderTop: '1px solid var(--border)',
-                                      background: 'var(--surface)',
-                                      fontSize: '12px',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: '8px'
-                                    }}
-                                  >
-                                    <div>
-                                      <strong style={{ color: 'var(--text2)' }}>Chief Complaints:</strong>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                                        {historyItem.complaints && historyItem.complaints.length > 0 ? (
-                                          historyItem.complaints.map(c => (
-                                            <span key={c} style={{ background: 'var(--green-light)', color: 'var(--green-dark)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
-                                              {c}
-                                            </span>
-                                          ))
-                                        ) : (
-                                          <span style={{ color: 'var(--text2)' }}>General Consultation</span>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {historyItem.describeComplaint && (
+                                  <div style={{ padding: '12px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <div className="admin-consult-grid">
                                       <div>
-                                        <strong style={{ color: 'var(--text2)' }}>Description:</strong>
-                                        <div style={{ marginTop: '2px', color: 'var(--text)', fontStyle: 'italic' }}>
-                                          "{historyItem.describeComplaint}"
+                                        <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 700 }}>CLINICAL NOTES & DIAGNOSIS</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text)', marginTop: '4px', whiteSpace: 'pre-wrap', background: 'var(--surface)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border2)' }}>
+                                          {historyItem.clinicalNotes || 'No diagnosis notes recorded.'}
                                         </div>
                                       </div>
-                                    )}
-
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '4px' }}>
-                                      <div style={{ background: 'var(--surface2)', padding: '8px', borderRadius: '4px' }}>
-                                        <strong style={{ color: 'var(--text2)', display: 'block', marginBottom: '3px' }}>Clinical Notes & Diagnosis:</strong>
-                                        <span style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
-                                          {historyItem.clinicalNotes || 'No notes recorded.'}
-                                        </span>
-                                      </div>
-                                      <div style={{ background: 'var(--surface2)', padding: '8px', borderRadius: '4px' }}>
-                                        <strong style={{ color: 'var(--text2)', display: 'block', marginBottom: '3px' }}>Prescription & Treatment Plan:</strong>
-                                        <span style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
-                                          {historyItem.prescription || 'No medicines prescribed.'}
-                                        </span>
+                                      <div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 700 }}>PRESCRIBED MEDICINES (Rx)</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text)', marginTop: '4px', background: 'var(--surface)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border2)' }}>
+                                          {historyItem.medicines && historyItem.medicines.length > 0 ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                              {historyItem.medicines.map((m, idx) => (
+                                                <div key={idx} style={{ fontSize: '12px' }}>
+                                                  <strong>{idx + 1}. {m.name}</strong> — {m.dosage} ({m.timing}) · {m.duration}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <span style={{ whiteSpace: 'pre-wrap' }}>
+                                              {historyItem.prescription || 'No medicines prescribed.'}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
+
+                                    {historyItem.followUpDate && (
+                                      <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '6px 10px', borderRadius: '4px', fontSize: '11px' }}>
+                                        <span style={{ color: '#B45309', fontWeight: 700 }}>⏰ Next Follow-up Checkup: </span>
+                                        <strong>{new Date(historyItem.followUpDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+                                        {historyItem.followUpNotes && <span style={{ color: 'var(--text2)' }}> — {historyItem.followUpNotes}</span>}
+                                      </div>
+                                    )}
 
                                     <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
                                       <button
@@ -2367,6 +2937,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                                           setEditingRecordId(historyItem._id);
                                           setCurrentNotes(historyItem.clinicalNotes || '');
                                           setCurrentPrescription(historyItem.prescription || '');
+                                          setCurrentMedicines(historyItem.medicines && historyItem.medicines.length > 0 ? historyItem.medicines : []);
+                                          setCurrentFollowUpDate(historyItem.followUpDate ? new Date(historyItem.followUpDate).toISOString().split('T')[0] : '');
+                                          setCurrentFollowUpNotes(historyItem.followUpNotes || '');
                                         }}
                                         style={{
                                           background: 'var(--amber-light, #FEF3C7)',
@@ -2388,6 +2961,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                                             setEditingRecordId(null);
                                             if (historyItem.clinicalNotes) setCurrentNotes(historyItem.clinicalNotes);
                                             if (historyItem.prescription) setCurrentPrescription(historyItem.prescription);
+                                            if (historyItem.medicines) setCurrentMedicines(historyItem.medicines);
+                                            if (historyItem.followUpDate) setCurrentFollowUpDate(new Date(historyItem.followUpDate).toISOString().split('T')[0]);
+                                            if (historyItem.followUpNotes) setCurrentFollowUpNotes(historyItem.followUpNotes);
                                           }}
                                           style={{
                                             background: 'var(--surface2)',
@@ -2428,128 +3004,10 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                         </div>
                       )}
                     </div>
-                  </>
+                  </div>
                 );
               })()}
             </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                {viewingPatient.patientPhone && (
-                  <>
-                    <a
-                      href={`tel:${viewingPatient.patientPhone}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        padding: '11px',
-                        borderRadius: '8px',
-                        border: '1.5px solid var(--green)',
-                        background: 'var(--green-light)',
-                        color: 'var(--green-dark)',
-                        textDecoration: 'none',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textAlign: 'center'
-                      }}
-                    >
-                      📞 Call Phone
-                    </a>
-                    <a
-                      href={getWhatsAppLink(viewingPatient.patientPhone, viewingPatient.patientName, viewingPatient.tokenNumber)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        padding: '11px',
-                        borderRadius: '8px',
-                        border: '1.5px solid #2E7D32',
-                        background: '#E8F5E9',
-                        color: '#2E7D32',
-                        textDecoration: 'none',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textAlign: 'center'
-                      }}
-                    >
-                      💬 WhatsApp
-                    </a>
-                  </>
-                )}
-              </div>
-
-              {viewingPatient.status === 'waiting' && (
-                <button
-                  onClick={() => {
-                    handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'serving' });
-                    setViewingPatient(null);
-                  }}
-                  style={{
-                    background: 'var(--green)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  🚀 Call Inside (Start Serving)
-                </button>
-              )}
-
-              {viewingPatient.status === 'serving' && (
-                <button
-                  onClick={() => {
-                    handleMarkDone(viewingPatient._id);
-                    setViewingPatient(null);
-                  }}
-                  style={{
-                    background: 'var(--green-dark)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✓ Complete Consultation
-                </button>
-              )}
-
-              {viewingPatient.status !== 'done' && viewingPatient.status !== 'cancelled' && (
-                <button
-                  onClick={() => {
-                    if (confirm('Are you sure you want to cancel this booking?')) {
-                      handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'cancelled' });
-                      setViewingPatient(null);
-                    }
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--red)',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    padding: '6px',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  Cancel Booking Token
-                </button>
-              )}
-            </div>
-
           </div>
         </div>
       )}

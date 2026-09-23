@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
+import User from '@/models/User';
+import { sendPrescriptionEmail } from '@/lib/sendPrescriptionEmail';
 import { updateMockBookingStatus, updateMockBookingNotes, addMockClinicalEntry, deleteMockClinicalEntry, cancelMockDoctorSlots } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
@@ -167,16 +169,48 @@ export async function POST(request) {
         return NextResponse.json({ success: true, data: booking, source: 'database' });
       }
 
-      // Booking notes update (prescription and clinical notes)
+      // Booking notes update (prescription, medicines, and clinical notes)
       if (action === 'updateBookingNotes') {
+        const { followUpDate, followUpNotes, medicines, patientEmail } = body;
+        const updateFields = {
+          prescription: prescription !== undefined ? prescription : '',
+          clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : '',
+          prescriptionSentAt: new Date()
+        };
+        if (followUpDate !== undefined) updateFields.followUpDate = followUpDate ? new Date(followUpDate) : null;
+        if (followUpNotes !== undefined) updateFields.followUpNotes = followUpNotes || '';
+        if (medicines !== undefined) updateFields.medicines = medicines || [];
+
         const booking = await Booking.findByIdAndUpdate(
           bookingId,
-          {
-            prescription: prescription !== undefined ? prescription : '',
-            clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : ''
-          },
+          updateFields,
           { new: true }
         );
+
+        if (booking) {
+          const clinic = await Clinic.findById(booking.clinicId);
+          // Determine patient email
+          const cleanPhone = (booking.patientPhone || '').replace(/\D/g, '').slice(-10);
+          const user = cleanPhone ? await User.findOne({ phone: { $regex: cleanPhone } }) : null;
+          const recipientEmail = patientEmail || user?.email;
+
+          if (recipientEmail) {
+            sendPrescriptionEmail({
+              toEmail: recipientEmail,
+              patientName: booking.patientName,
+              doctorName: booking.doctorName,
+              clinicName: clinic?.name,
+              clinicAddress: clinic?.address,
+              tokenNumber: booking.tokenNumber,
+              medicines: booking.medicines,
+              clinicalNotes: booking.clinicalNotes,
+              prescriptionText: booking.prescription,
+              followUpDate: booking.followUpDate,
+              followUpNotes: booking.followUpNotes
+            }).catch(e => console.error('Prescription email error:', e));
+          }
+        }
+
         return NextResponse.json({ success: true, data: booking, source: 'database' });
       }
 
@@ -188,25 +222,38 @@ export async function POST(request) {
           patientAge,
           patientGender,
           doctorName,
-          isNewRecord
+          isNewRecord,
+          followUpDate,
+          followUpNotes,
+          medicines,
+          patientEmail
         } = body;
 
+        let bookingRecord;
+        const clinic = await Clinic.findById(clinicId);
+
         if (bookingId && !isNewRecord) {
-          const booking = await Booking.findByIdAndUpdate(
+          const updateFields = {
+            prescription: prescription !== undefined ? prescription : '',
+            clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : '',
+            prescriptionSentAt: new Date()
+          };
+          if (followUpDate !== undefined) updateFields.followUpDate = followUpDate ? new Date(followUpDate) : null;
+          if (followUpNotes !== undefined) updateFields.followUpNotes = followUpNotes || '';
+          if (medicines !== undefined) updateFields.medicines = medicines || [];
+
+          bookingRecord = await Booking.findByIdAndUpdate(
             bookingId,
-            {
-              prescription: prescription !== undefined ? prescription : '',
-              clinicalNotes: clinicalNotes !== undefined ? clinicalNotes : ''
-            },
+            updateFields,
             { new: true }
           );
-          return NextResponse.json({ success: true, data: booking, source: 'database' });
         } else {
-          const clinic = await Clinic.findById(clinicId);
           const docName = doctorName || (clinic && clinic.doctors && clinic.doctors[0] ? clinic.doctors[0].name : (clinic ? clinic.doctorName : 'Doctor'));
           const cleanPhone = (patientPhone || '').trim();
+          const cleanPhone10 = cleanPhone.replace(/\D/g, '').slice(-10);
+          const matchedUser = cleanPhone10 ? await User.findOne({ phone: { $regex: cleanPhone10 } }) : null;
 
-          const newBooking = await Booking.create({
+          bookingRecord = await Booking.create({
             tokenNumber: 'E-' + Math.floor(100 + Math.random() * 900),
             clinicId,
             patientName: patientName || 'Patient',
@@ -219,10 +266,39 @@ export async function POST(request) {
             slot: 'Clinical Consultation',
             clinicalNotes: clinicalNotes || '',
             prescription: prescription || '',
-            createdAt: new Date()
+            medicines: medicines || [],
+            followUpDate: followUpDate ? new Date(followUpDate) : null,
+            followUpNotes: followUpNotes || '',
+            prescriptionSentAt: new Date(),
+            createdAt: new Date(),
+            feePaid: clinic?.fee || 0,
+            userId: matchedUser ? matchedUser._id : null
           });
-          return NextResponse.json({ success: true, data: newBooking, source: 'database' });
         }
+
+        if (bookingRecord) {
+          const cleanPhone = (bookingRecord.patientPhone || '').replace(/\D/g, '').slice(-10);
+          const user = cleanPhone ? await User.findOne({ phone: { $regex: cleanPhone } }) : null;
+          const recipientEmail = patientEmail || user?.email;
+
+          if (recipientEmail) {
+            sendPrescriptionEmail({
+              toEmail: recipientEmail,
+              patientName: bookingRecord.patientName,
+              doctorName: bookingRecord.doctorName,
+              clinicName: clinic?.name,
+              clinicAddress: clinic?.address,
+              tokenNumber: bookingRecord.tokenNumber,
+              medicines: bookingRecord.medicines,
+              clinicalNotes: bookingRecord.clinicalNotes,
+              prescriptionText: bookingRecord.prescription,
+              followUpDate: bookingRecord.followUpDate,
+              followUpNotes: bookingRecord.followUpNotes
+            }).catch(e => console.error('Prescription email error:', e));
+          }
+        }
+
+        return NextResponse.json({ success: true, data: bookingRecord, source: 'database' });
       }
 
       // Delete clinical entry or clear notes
@@ -268,7 +344,7 @@ export async function POST(request) {
         return NextResponse.json({ success: true, modifiedCount: count, source: 'mock' });
       }
       if (action === 'updateBookingNotes') {
-        const booking = updateMockBookingNotes(bookingId, prescription, clinicalNotes);
+        const booking = updateMockBookingNotes(bookingId, prescription, clinicalNotes, body.followUpDate, body.followUpNotes, body.medicines);
         return NextResponse.json({ success: true, data: booking, source: 'mock' });
       }
       if (action === 'addClinicalEntry') {

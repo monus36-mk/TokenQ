@@ -255,7 +255,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
   const total = fee + 5;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', maxWidth: '750px', margin: '0 auto', position: 'relative' }}>
       
       {/* BANK SMS BANNER */}
       {showBankSms && (

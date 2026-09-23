@@ -42,6 +42,22 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'Thanjavur',
   },
+  bloodGroup: {
+    type: String,
+    default: '',
+  },
+  emergencyContact: {
+    type: String,
+    default: '',
+  },
+  allergies: {
+    type: String,
+    default: '',
+  },
+  medicalConditions: {
+    type: String,
+    default: '',
+  },
   resetPasswordOtp: {
     type: String,
     required: false,

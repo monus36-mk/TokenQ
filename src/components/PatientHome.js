@@ -14,15 +14,27 @@ const isClinicOpen = (clinic) => {
 };
 
 export default function PatientHome({ 
-  clinics, 
-  userBookings, 
+  clinics = [], 
+  userBookings = [], 
   onSelectClinic, 
   onSelectToken, 
   onNavigate, 
-  searchQuery, 
+  searchQuery = '', 
   setSearchQuery,
-  currentUser
+  currentUser,
+  onOpenNotifications,
+  unreadNotifCount = 0,
+  activeTokenCount: propActiveTokenCount,
+  prescriptionCount: propPrescriptionCount
 }) {
+  const activeTokenCount = propActiveTokenCount !== undefined 
+    ? propActiveTokenCount 
+    : (userBookings || []).filter(b => b.status === 'waiting' || b.status === 'serving').length;
+
+  const prescriptionCount = propPrescriptionCount !== undefined 
+    ? propPrescriptionCount 
+    : (userBookings || []).filter(b => Boolean(b.prescription || (b.medicines && b.medicines.length > 0) || b.clinicalNotes)).length;
+
   // Filter & Modal States
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
@@ -246,8 +258,48 @@ export default function PatientHome({
             <div className="app-brand">Token<span>Q</span></div>
             <div className="loc">📍 {currentUser?.city || 'Thanjavur'}, Tamil Nadu</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 500 }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Top-Right Notification Bell */}
+            <button 
+              onClick={onOpenNotifications}
+              style={{
+                position: 'relative',
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '34px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                cursor: 'pointer',
+                color: 'white',
+                flexShrink: 0
+              }}
+              title="Notifications & Checkup Reminders"
+            >
+              <span>🔔</span>
+              {unreadNotifCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-3px',
+                  right: '-3px',
+                  background: '#EF4444',
+                  color: 'white',
+                  borderRadius: '10px',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  border: '1.5px solid #064E3B'
+                }}>
+                  {unreadNotifCount}
+                </span>
+              )}
+            </button>
+
+            <span style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
               {currentUser ? `Hi, ${currentUser?.name?.split(' ')[0]}!` : 'Welcome!'}
             </span>
             {currentUser ? (
@@ -260,8 +312,8 @@ export default function PatientHome({
                   background: 'rgba(255, 255, 255, 0.18)',
                   color: 'white',
                   border: 'none',
-                  padding: '3px 7px',
-                  borderRadius: '4px',
+                  padding: '5px 9px',
+                  borderRadius: '6px',
                   fontSize: '11px',
                   cursor: 'pointer',
                   fontWeight: 600
@@ -276,9 +328,9 @@ export default function PatientHome({
                   background: 'white',
                   color: 'var(--green-dark)',
                   border: 'none',
-                  padding: '4px 10px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
                   cursor: 'pointer',
                   fontWeight: 700
                 }}
@@ -646,13 +698,13 @@ export default function PatientHome({
           {activeBookings.length > 0 && (
             <>
               <div className="sec-label">Your upcoming bookings</div>
-              {activeBookings.map(booking => {
+              {activeBookings.map((booking, idx) => {
                 const clinic = clinics.find(c => c._id === booking.clinicId) || {};
                 const isServing = booking.status === 'serving';
                 
                 return (
                   <div 
-                    key={booking._id} 
+                    key={booking._id ? `home-up-${booking._id}-${idx}` : `home-up-${idx}`} 
                     className="notice"
                     style={{ cursor: 'pointer', borderLeftColor: 'var(--green)' }}
                     onClick={() => onSelectToken(booking)}
@@ -685,12 +737,12 @@ export default function PatientHome({
 
           {sortedClinics.length > 0 ? (
             <div className="clinics-grid">
-              {sortedClinics.map(clinic => {
+              {sortedClinics.map((clinic, idx) => {
                 const dist = userCoords ? getClinicDistance(clinic, userCoords) : null;
                 const formattedDist = formatDistance(dist);
 
                 return (
-                  <div key={clinic._id} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
+                  <div key={clinic._id ? `home-cl-${clinic._id}-${idx}` : `home-cl-${idx}`} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
                     <div className="card-row">
                       <div className="card-icon" style={{ background: clinic.profilePic ? 'transparent' : (clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE'), overflow: 'hidden', padding: 0 }}>
                         {clinic.profilePic ? (
