@@ -260,45 +260,6 @@ export default function PatientHome({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Top-Right Notification Bell */}
-            <button 
-              onClick={onOpenNotifications}
-              style={{
-                position: 'relative',
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '34px',
-                height: '34px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                cursor: 'pointer',
-                color: 'white',
-                flexShrink: 0
-              }}
-              title="Notifications & Checkup Reminders"
-            >
-              <span>🔔</span>
-              {unreadNotifCount > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-3px',
-                  right: '-3px',
-                  background: '#EF4444',
-                  color: 'white',
-                  borderRadius: '10px',
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  padding: '1px 5px',
-                  border: '1.5px solid #064E3B'
-                }}>
-                  {unreadNotifCount}
-                </span>
-              )}
-            </button>
-
             <span style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
               {currentUser ? `Hi, ${currentUser?.name?.split(' ')[0]}!` : 'Welcome!'}
             </span>
@@ -351,139 +312,156 @@ export default function PatientHome({
         </div>
       </div>
 
-      {/* COMPACT & FRIENDLY FILTER BAR */}
-      <div className="smart-filters-bar" style={{ padding: '12px 20px 8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', overflow: 'visible', position: 'relative' }}>
+      {/* COMPACT & RESPONSIVE FILTER BAR */}
+      <div className="smart-filters-bar">
         
-        {/* 🩺 Medical Specialty Dropdown Filter */}
-        <div style={{ position: 'relative' }}>
+        {/* Left Side: All filter chips (single horizontal row on PC, responsive wrap on Mobile) */}
+        <div className="smart-filters-left">
+          {/* 🩺 Medical Specialty Dropdown Filter */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              className={`smart-chip ${selectedCategory !== 'All' ? 'active' : ''}`}
+              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+              title="Click to select medical specialty"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <span>🩺</span>
+              <span>Specialty: <strong style={{ color: selectedCategory !== 'All' ? 'var(--green-dark)' : 'inherit' }}>{selectedCategory}</strong></span>
+              <span style={{ fontSize: '10px', opacity: 0.7, marginLeft: '2px' }}>▾</span>
+            </button>
+
+            {showCategoryDropdown && (
+              <>
+                <div 
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
+                  onClick={() => setShowCategoryDropdown(false)}
+                />
+                <div 
+                  className="card"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                    zIndex: 999,
+                    minWidth: '220px',
+                    maxHeight: '280px',
+                    overflowY: 'auto',
+                    padding: '6px 0',
+                    margin: 0
+                  }}
+                >
+                  {uniqueCategories.map(cat => (
+                    <div 
+                      key={cat}
+                      onClick={() => {
+                        setSelectedCategory(cat);
+                        setShowCategoryDropdown(false);
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        fontSize: '13px',
+                        fontWeight: selectedCategory === cat ? 700 : 500,
+                        color: selectedCategory === cat ? 'var(--green-dark)' : 'var(--text)',
+                        background: selectedCategory === cat ? 'var(--green-light)' : 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedCategory !== cat) e.currentTarget.style.background = 'var(--surface2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedCategory !== cat) e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <span>{cat === 'All' ? 'All Specialties' : cat}</span>
+                      {selectedCategory === cat && <span style={{ fontSize: '13px', color: 'var(--green-dark)' }}>✓</span>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 🎛️ Main Filter Button (Opens full options modal) */}
           <button 
-            className={`smart-chip ${selectedCategory !== 'All' ? 'active' : ''}`}
-            onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-            title="Click to select medical specialty"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
+            className={`filter-trigger-btn ${activeFilterCount > 0 ? 'active' : ''}`}
+            onClick={() => setShowFilterModal(true)}
+            title="Click to customize all clinic filters and sort options"
           >
-            <span>🩺</span>
-            <span>Specialty: <strong style={{ color: selectedCategory !== 'All' ? 'var(--green-dark)' : 'inherit' }}>{selectedCategory}</strong></span>
-            <span style={{ fontSize: '10px', opacity: 0.7, marginLeft: '2px' }}>▾</span>
+            <span>🎛️</span>
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="filter-count-badge">{activeFilterCount}</span>
+            )}
           </button>
 
-          {showCategoryDropdown && (
-            <>
-              <div 
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }}
-                onClick={() => setShowCategoryDropdown(false)}
-              />
-              <div 
-                className="card"
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  left: 0,
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '12px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  zIndex: 999,
-                  minWidth: '220px',
-                  maxHeight: '280px',
-                  overflowY: 'auto',
-                  padding: '6px 0',
-                  margin: 0
-                }}
-              >
-                {uniqueCategories.map(cat => (
-                  <div 
-                    key={cat}
-                    onClick={() => {
-                      setSelectedCategory(cat);
-                      setShowCategoryDropdown(false);
-                    }}
-                    style={{
-                      padding: '10px 16px',
-                      fontSize: '13px',
-                      fontWeight: selectedCategory === cat ? 700 : 500,
-                      color: selectedCategory === cat ? 'var(--green-dark)' : 'var(--text)',
-                      background: selectedCategory === cat ? 'var(--green-light)' : 'transparent',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedCategory !== cat) e.currentTarget.style.background = 'var(--surface2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedCategory !== cat) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <span>{cat === 'All' ? 'All Specialties' : cat}</span>
-                    {selectedCategory === cat && <span style={{ fontSize: '13px', color: 'var(--green-dark)' }}>✓</span>}
-                  </div>
-                ))}
-              </div>
-            </>
+          {/* Quick Shortcut 1: 📍 Near Me (GPS) */}
+          <button 
+            className={`smart-chip ${isNearMeActive ? 'active-near' : ''}`}
+            onClick={handleToggleNearMe}
+            title="Find nearest clinics based on your current location"
+          >
+            {isLocating ? (
+              <>
+                <span className="loc-pulse-dot"></span>
+                <span>Locating...</span>
+              </>
+            ) : (
+              <>
+                <span>📍</span>
+                <span>Near Me {isNearMeActive ? '✓' : ''}</span>
+              </>
+            )}
+          </button>
+
+          {/* Quick Shortcut 2: 🟢 Open Now */}
+          <button 
+            className={`smart-chip ${isOpenNowOnly ? 'active' : ''}`}
+            onClick={() => setIsOpenNowOnly(!isOpenNowOnly)}
+            title="Show only open clinics"
+          >
+            <span>🟢</span>
+            <span>Open Now {isOpenNowOnly ? '✓' : ''}</span>
+          </button>
+
+          {/* Quick Reset if filters applied */}
+          {(activeFilterCount > 0 || selectedCategory !== 'All') && (
+            <button 
+              className="smart-chip reset-chip"
+              onClick={resetAllFilters}
+              title="Clear all active filters"
+            >
+              <span>✕ Reset</span>
+            </button>
           )}
         </div>
 
-        {/* 🎛️ Main Filter Button (Opens full options modal) */}
+        {/* 🔔 Notifications Bell Icon on Far Right */}
         <button 
-          className={`filter-trigger-btn ${activeFilterCount > 0 ? 'active' : ''}`}
-          onClick={() => setShowFilterModal(true)}
-          title="Click to customize all clinic filters and sort options"
+          onClick={onOpenNotifications}
+          className="filter-bell-btn"
+          title="Notifications & Checkup Reminders"
         >
-          <span>🎛️</span>
-          <span>Filters</span>
-          {activeFilterCount > 0 && (
-            <span className="filter-count-badge">{activeFilterCount}</span>
+          <span>🔔</span>
+          {unreadNotifCount > 0 && (
+            <span className="filter-bell-badge">
+              {unreadNotifCount}
+            </span>
           )}
         </button>
-
-        {/* Quick Shortcut 1: 📍 Near Me (GPS) */}
-        <button 
-          className={`smart-chip ${isNearMeActive ? 'active-near' : ''}`}
-          onClick={handleToggleNearMe}
-          title="Find nearest clinics based on your current location"
-        >
-          {isLocating ? (
-            <>
-              <span className="loc-pulse-dot"></span>
-              <span>Locating...</span>
-            </>
-          ) : (
-            <>
-              <span>📍</span>
-              <span>Near Me {isNearMeActive ? '✓' : ''}</span>
-            </>
-          )}
-        </button>
-
-        {/* Quick Shortcut 2: 🟢 Open Now */}
-        <button 
-          className={`smart-chip ${isOpenNowOnly ? 'active' : ''}`}
-          onClick={() => setIsOpenNowOnly(!isOpenNowOnly)}
-          title="Show only open clinics"
-        >
-          <span>🟢</span>
-          <span>Open Now {isOpenNowOnly ? '✓' : ''}</span>
-        </button>
-
-        {/* Quick Reset if filters applied */}
-        {(activeFilterCount > 0 || selectedCategory !== 'All') && (
-          <button 
-            className="smart-chip reset-chip"
-            onClick={resetAllFilters}
-            title="Clear all active filters"
-          >
-            <span>✕ Reset</span>
-          </button>
-        )}
 
       </div>
 
