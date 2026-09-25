@@ -71,6 +71,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     return String(phone).replace(/\D/g, '').slice(-10);
   };
 
+  const formatDocName = (raw) => {
+    if (!raw) return 'Doctor';
+    const clean = String(raw).trim().replace(/^dr\.?\s+/i, '');
+    return clean ? `Dr. ${clean}` : 'Doctor';
+  };
+
   const [selectedClinicId, setSelectedClinicId] = useState(defaultClinicId);
   const [activeTab, setActiveTab] = useState(isClinicAdmin ? 'queue' : 'add-clinic');
   const [viewingPatient, setViewingPatient] = useState(null);
@@ -372,6 +378,8 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   };
 
   const clinic = clinics.find(c => String(c._id) === String(selectedClinicId)) || clinics[0] || {};
+  const clinicAllBookings = bookings.filter(b => String(b.clinicId) === String(selectedClinicId));
+  const clinicAllFollowUps = clinicAllBookings.filter(b => b.followUpDate);
   const clinicBookings = bookings.filter(b => {
     if (String(b.clinicId) !== String(selectedClinicId)) return false;
     const d = new Date(b.createdAt);
@@ -785,7 +793,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 className={`atab ${activeTab === 'reminders' ? 'active' : ''}`}
                 onClick={() => setActiveTab('reminders')}
               >
-                ⏰ Reminders ({clinicBookings.filter(b => b.followUpDate).length})
+                ⏰ Reminders ({filterDoctor === 'All' ? clinicAllFollowUps.length : clinicAllFollowUps.filter(b => b.doctorName === filterDoctor).length})
               </div>
               <div
                 className={`atab ${activeTab === 'controls' ? 'active' : ''}`}
@@ -1164,12 +1172,25 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
           {/* PATIENT HISTORY TAB */}
           {activeTab === 'patients' && !isProfileIncomplete && (() => {
-            // Get all bookings for the selected clinic
-            const clinicAllBookings = bookings.filter(b => String(b.clinicId) === String(selectedClinicId));
+            // Helper to count unique patients in a list of bookings
+            const countUniquePatients = (bList) => {
+              const seen = new Set();
+              bList.forEach(b => {
+                const nameKey = (b.patientName || '').trim().toLowerCase();
+                const phoneKey = normalizePhone(b.patientPhone) || (b.patientPhone || '').trim();
+                seen.add(`${nameKey}_${phoneKey}`);
+              });
+              return seen.size;
+            };
+
+            // Filter bookings by selected doctor if applicable
+            const targetClinicBookings = filterDoctor === 'All'
+              ? clinicAllBookings
+              : clinicAllBookings.filter(b => b.doctorName === filterDoctor);
 
             // Group by unique patient (Name + Phone)
             const uniquePatientsMap = {};
-            clinicAllBookings.forEach(b => {
+            targetClinicBookings.forEach(b => {
               const nameKey = (b.patientName || '').trim().toLowerCase();
               const phoneKey = normalizePhone(b.patientPhone) || (b.patientPhone || '').trim();
               const key = `${nameKey}_${phoneKey}`;
@@ -1213,6 +1234,42 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
             return (
               <div>
+                {/* Doctor Filter Selector */}
+                {clinicDoctors.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', background: 'var(--surface2)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      👨‍⚕️ <span>Filter by Doctor:</span>
+                    </div>
+                    <select
+                      value={filterDoctor}
+                      onChange={(e) => setFilterDoctor(e.target.value)}
+                      style={{
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1.5px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        minWidth: '200px'
+                      }}
+                    >
+                      <option value="All">All Doctors ({countUniquePatients(clinicAllBookings)} patients)</option>
+                      {clinicDoctors.map(d => {
+                        const docBookings = clinicAllBookings.filter(b => b.doctorName === d.name);
+                        const docPatientCount = countUniquePatients(docBookings);
+                        return (
+                          <option key={d._id || d.name} value={d.name}>
+                            {formatDocName(d.name)} ({docPatientCount} patients)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
+                {/* Search Bar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
                     🔍 Search Patient Directory
@@ -1237,12 +1294,18 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 </div>
 
                 <div className="sec-label">
-                  All Registered Patients ({filteredPatients.length})
+                  {filterDoctor === 'All' 
+                    ? `All Registered Patients (${filteredPatients.length})` 
+                    : `Patients of ${formatDocName(filterDoctor)} (${filteredPatients.length})`}
                 </div>
 
                 {filteredPatients.length === 0 ? (
                   <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px' }}>
-                    {patientSearchQuery ? 'No matching patients found.' : 'No patient records found for this clinic.'}
+                    {patientSearchQuery 
+                      ? 'No matching patients found.' 
+                      : filterDoctor !== 'All'
+                        ? `No patient records found for ${formatDocName(filterDoctor)}.`
+                        : 'No patient records found for this clinic.'}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1270,11 +1333,16 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           className="history-item-card"
                         >
                           <div>
-                            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span>{patient.name}</span>
                               {hasRecord && (
                                 <span className="pill pg" style={{ fontSize: '10px', padding: '2px 7px' }}>
                                   🩺 Rx On File
+                                </span>
+                              )}
+                              {patient.latestBooking?.doctorName && (
+                                <span className="pill pb" style={{ fontSize: '10px', padding: '2px 7px' }}>
+                                  👨‍⚕️ {formatDocName(patient.latestBooking.doctorName)}
                                 </span>
                               )}
                             </div>
@@ -1318,21 +1386,54 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
           {/* FOLLOW-UP CHECKUP REMINDERS TAB */}
           {activeTab === 'reminders' && !isProfileIncomplete && (() => {
-            const allFollowUpBookings = clinicBookings
-              .filter(b => b.followUpDate)
+            // Target follow-ups for selected doctor (or all doctors)
+            const targetFollowUps = filterDoctor === 'All'
+              ? clinicAllFollowUps
+              : clinicAllFollowUps.filter(b => b.doctorName === filterDoctor);
+
+            const allFollowUpBookings = [...targetFollowUps]
               .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
 
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
-            const weekEnd = new Date();
+
+            const tomorrowStart = new Date(todayStart);
+            tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+            const tomorrowEnd = new Date(todayEnd);
+            tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+
+            const weekEnd = new Date(todayEnd);
             weekEnd.setDate(weekEnd.getDate() + 7);
+
+            const dueTodayList = allFollowUpBookings.filter(b => {
+              const d = new Date(b.followUpDate);
+              return d >= todayStart && d <= todayEnd;
+            });
+
+            const dueTomorrowList = allFollowUpBookings.filter(b => {
+              const d = new Date(b.followUpDate);
+              return d >= tomorrowStart && d <= tomorrowEnd;
+            });
+
+            const thisWeekList = allFollowUpBookings.filter(b => {
+              const d = new Date(b.followUpDate);
+              return d >= todayStart && d <= weekEnd;
+            });
+
+            const overdueList = allFollowUpBookings.filter(b => {
+              const d = new Date(b.followUpDate);
+              return d < todayStart;
+            });
 
             const filteredFollowUps = allFollowUpBookings.filter(b => {
               const fDate = new Date(b.followUpDate);
               if (followUpFilter === 'today') {
                 return fDate >= todayStart && fDate <= todayEnd;
+              }
+              if (followUpFilter === 'tomorrow') {
+                return fDate >= tomorrowStart && fDate <= tomorrowEnd;
               }
               if (followUpFilter === 'week') {
                 return fDate >= todayStart && fDate <= weekEnd;
@@ -1355,9 +1456,43 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     </div>
                   </div>
                   <span className="pill pg" style={{ fontWeight: 700 }}>
-                    {allFollowUpBookings.length} Scheduled Total
+                    {allFollowUpBookings.length} {filterDoctor !== 'All' ? `for Dr. ${filterDoctor}` : 'Total Scheduled'}
                   </span>
                 </div>
+
+                {/* Doctor Filter Selector */}
+                {clinicDoctors.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', background: 'var(--surface2)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      👨‍⚕️ <span>Filter by Doctor:</span>
+                    </div>
+                    <select
+                      value={filterDoctor}
+                      onChange={(e) => setFilterDoctor(e.target.value)}
+                      style={{
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1.5px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        minWidth: '200px'
+                      }}
+                    >
+                      <option value="All">All Doctors ({clinicAllFollowUps.length} follow-ups)</option>
+                      {clinicDoctors.map(d => {
+                        const docFollowUpCount = clinicAllFollowUps.filter(b => b.doctorName === d.name).length;
+                        return (
+                          <option key={d._id || d.name} value={d.name}>
+                            {formatDocName(d.name)} ({docFollowUpCount} follow-ups)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
 
                 {/* Filter Pills */}
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -1371,25 +1506,25 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     className={`cat-pill ${followUpFilter === 'today' ? 'active' : ''}`}
                     onClick={() => setFollowUpFilter('today')}
                   >
-                    🔔 Due Today ({allFollowUpBookings.filter(b => {
-                      const d = new Date(b.followUpDate);
-                      return d >= todayStart && d <= todayEnd;
-                    }).length})
+                    🔔 Due Today ({dueTodayList.length})
+                  </button>
+                  <button
+                    className={`cat-pill ${followUpFilter === 'tomorrow' ? 'active' : ''}`}
+                    onClick={() => setFollowUpFilter('tomorrow')}
+                  >
+                    ⏰ Tomorrow ({dueTomorrowList.length})
                   </button>
                   <button
                     className={`cat-pill ${followUpFilter === 'week' ? 'active' : ''}`}
                     onClick={() => setFollowUpFilter('week')}
                   >
-                    📅 This Week ({allFollowUpBookings.filter(b => {
-                      const d = new Date(b.followUpDate);
-                      return d >= todayStart && d <= weekEnd;
-                    }).length})
+                    📅 This Week ({thisWeekList.length})
                   </button>
                   <button
                     className={`cat-pill ${followUpFilter === 'overdue' ? 'active' : ''}`}
                     onClick={() => setFollowUpFilter('overdue')}
                   >
-                    ⚠️ Overdue ({allFollowUpBookings.filter(b => new Date(b.followUpDate) < todayStart).length})
+                    ⚠️ Overdue ({overdueList.length})
                   </button>
                 </div>
 
@@ -1398,48 +1533,63 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   <div style={{ padding: '36px 20px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)' }}>
                     <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>⏰</span>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>No follow-up checkups found for this filter</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px' }}>When you set a follow-up date while consulting patients, it will appear here.</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                      {filterDoctor !== 'All' 
+                        ? `No scheduled follow-ups for ${formatDocName(filterDoctor)} in this filter.` 
+                        : 'When you set a follow-up date while consulting patients, it will appear here.'}
+                    </div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {filteredFollowUps.map((booking) => {
                       const fDate = new Date(booking.followUpDate);
+                      const isDueToday = fDate >= todayStart && fDate <= todayEnd;
+                      const isTomorrow = fDate >= tomorrowStart && fDate <= tomorrowEnd;
+                      const isOverdue = fDate < todayStart;
                       const daysLeft = Math.ceil((fDate - new Date()) / (1000 * 60 * 60 * 24));
-                      const isDueToday = daysLeft === 0;
-                      const isOverdue = daysLeft < 0;
 
                       return (
                         <div
                           key={booking._id}
                           className="card"
                           style={{
-                            border: isDueToday ? '1.5px solid var(--amber)' : isOverdue ? '1.5px solid var(--red)' : '1px solid var(--border)',
+                            border: isDueToday ? '1.5px solid var(--amber)' : isTomorrow ? '1.5px solid #3b82f6' : isOverdue ? '1.5px solid var(--red)' : '1px solid var(--border)',
                             padding: '14px',
                             background: 'var(--surface)'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                             <div>
-                              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                                {booking.patientName}
+                              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span>{booking.patientName}</span>
+                                <span className="pill pg" style={{ fontSize: '10px', padding: '2px 7px' }}>
+                                  🩺 {formatDocName(booking.doctorName)}
+                                </span>
                               </div>
                               <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
-                                📱 {booking.patientPhone || 'No phone'} · {booking.patientAge} yrs · Dr. {booking.doctorName}
+                                📱 {booking.patientPhone || 'No phone'} · {booking.patientAge} yrs · {booking.patientGender === 'F' ? 'Female' : 'Male'}
                               </div>
                             </div>
-                            <span className={`pill ${isOverdue ? 'pr' : isDueToday ? 'pa' : 'pg'}`} style={{ fontWeight: 700, fontSize: '11px' }}>
-                              {isOverdue ? 'Overdue' : isDueToday ? '🔔 Due Today!' : `In ${daysLeft} days`}
+                            <span className={`pill ${isOverdue ? 'pr' : isDueToday ? 'pa' : isTomorrow ? 'pb' : 'pg'}`} style={{ fontWeight: 700, fontSize: '11px' }}>
+                              {isOverdue ? '⚠️ Overdue' : isDueToday ? '🔔 Due Today!' : isTomorrow ? '⏰ Tomorrow' : `In ${daysLeft} days`}
                             </span>
                           </div>
 
                           <div style={{ background: 'var(--surface2)', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', marginBottom: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                               <span style={{ color: 'var(--text2)' }}>Scheduled Date:</span>
-                              <strong style={{ color: 'var(--text)' }}>{fDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+                              <strong style={{ color: 'var(--text)' }}>
+                                {fDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                              </strong>
                             </div>
                             {booking.followUpNotes && (
                               <div style={{ marginTop: '4px', color: 'var(--text)' }}>
-                                <span style={{ color: 'var(--text2)' }}>Advice: </span> {booking.followUpNotes}
+                                <span style={{ color: 'var(--text2)' }}>Doctor's Advice: </span> {booking.followUpNotes}
+                              </div>
+                            )}
+                            {booking.clinicalNotes && (
+                              <div style={{ marginTop: '4px', color: 'var(--text3)', fontSize: '11px' }}>
+                                <span>Diagnosis: </span> {booking.clinicalNotes}
                               </div>
                             )}
                           </div>
