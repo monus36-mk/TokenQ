@@ -97,9 +97,9 @@ export default function PatientNotifications({
             </div>
           ) : (
             notifications.map((n) => {
-              const tagClass = n.type === 'rx' ? 'tag-rx' : n.type === 'reminder' ? 'tag-reminder' : n.type === 'turn' ? 'tag-turn' : 'tag-info';
-              const tagLabel = n.badgeLabel || (n.type === 'rx' ? 'Prescription' : n.type === 'reminder' ? 'Reminder' : n.type === 'turn' ? 'Queue Alert' : 'Notice');
-              const icon = n.icon || (n.type === 'reminder' ? '⏰' : n.type === 'rx' ? '💊' : n.type === 'turn' ? '🟢' : '🔔');
+              const tagClass = n.type === 'rx' ? 'tag-rx' : n.type === 'reminder' ? 'tag-reminder' : n.type === 'turn' ? 'tag-turn' : n.type === 'cancel' ? 'tag-cancel' : 'tag-info';
+              const tagLabel = n.badgeLabel || (n.type === 'rx' ? 'Prescription' : n.type === 'reminder' ? 'Reminder' : n.type === 'turn' ? 'Queue Alert' : n.type === 'cancel' ? 'Slot Cancelled' : 'Notice');
+              const icon = n.icon || (n.type === 'reminder' ? '⏰' : n.type === 'rx' ? '💊' : n.type === 'turn' ? '🟢' : n.type === 'cancel' ? '🚫' : '🔔');
 
               return (
                 <div 

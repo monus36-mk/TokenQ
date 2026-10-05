@@ -165,7 +165,13 @@ export async function POST(request) {
 
       // Booking status update per Doctor
       if (action === 'updateBookingStatus') {
-        const booking = await Booking.findByIdAndUpdate(bookingId, { status }, { new: true });
+        const updateObj = { status };
+        if (status === 'cancelled') {
+          updateObj.cancelledBy = body.cancelledBy || 'doctor';
+          updateObj.cancelReason = body.cancelReason || (body.cancelledBy === 'patient' ? 'Cancelled by patient' : 'Doctor had to leave clinic early / Emergency cancellation');
+          updateObj.cancelledAt = new Date();
+        }
+        const booking = await Booking.findByIdAndUpdate(bookingId, updateObj, { new: true });
         return NextResponse.json({ success: true, data: booking, source: 'database' });
       }
 
@@ -254,7 +260,7 @@ export async function POST(request) {
           const matchedUser = cleanPhone10 ? await User.findOne({ phone: { $regex: cleanPhone10 } }) : null;
 
           bookingRecord = await Booking.create({
-            tokenNumber: 'E-' + Math.floor(100 + Math.random() * 900),
+            tokenNumber: 'REC-' + Math.floor(1000 + Math.random() * 9000),
             clinicId,
             patientName: patientName || 'Patient',
             patientPhone: cleanPhone,
@@ -305,7 +311,7 @@ export async function POST(request) {
       if (action === 'deleteClinicalEntry') {
         const booking = await Booking.findById(bookingId);
         if (booking) {
-          if (booking.tokenNumber && String(booking.tokenNumber).startsWith('E-')) {
+          if (booking.tokenNumber && (String(booking.tokenNumber).startsWith('REC-') || String(booking.tokenNumber).startsWith('E-'))) {
             await Booking.findByIdAndDelete(bookingId);
           } else {
             booking.clinicalNotes = '';
@@ -317,20 +323,31 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Booking record not found' }, { status: 404 });
       }
 
-      // Cancel all remaining waiting slots/bookings for a doctor (or clinic)
+      // Cancel all remaining waiting/active slots/bookings for a doctor (or clinic)
       if (action === 'cancelDoctorSlots') {
-        const filter = { clinicId, status: 'waiting' };
+        const filter = { clinicId, status: { $in: ['waiting', 'serving'] } };
         if (doctorName) {
-          filter.doctorName = doctorName;
+          const cleanDoc = doctorName.trim().replace(/^dr\.?\s+/i, '');
+          filter.doctorName = { $regex: new RegExp(cleanDoc ? `^(dr\\.?\\s+)?${cleanDoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` : doctorName, 'i') };
         }
+        const reason = body.cancelReason || 'Doctor had to leave clinic early / Emergency cancellation';
+        const by = body.cancelledBy || 'doctor';
         const result = await Booking.updateMany(
           filter,
-          { $set: { status: 'cancelled' } }
+          {
+            $set: {
+              status: 'cancelled',
+              cancelReason: reason,
+              cancelledBy: by,
+              cancelledAt: new Date()
+            }
+          }
         );
         return NextResponse.json({
           success: true,
           modifiedCount: result.modifiedCount,
-          message: `Cancelled ${result.modifiedCount} waiting slots for ${doctorName || 'doctor'}`,
+          message: `Cancelled ${result.modifiedCount} slots for ${doctorName || 'doctor'}`,
+          cancelReason: reason,
           source: 'database'
         });
       }
@@ -340,8 +357,10 @@ export async function POST(request) {
     } catch (dbError) {
       console.warn('Database Admin Action error, checking mock fallback:', dbError.message);
       if (action === 'cancelDoctorSlots') {
-        const count = cancelMockDoctorSlots(clinicId, doctorName);
-        return NextResponse.json({ success: true, modifiedCount: count, source: 'mock' });
+        const reason = body.cancelReason || 'Doctor had to leave clinic early / Emergency cancellation';
+        const by = body.cancelledBy || 'doctor';
+        const count = cancelMockDoctorSlots(clinicId, doctorName, reason, by);
+        return NextResponse.json({ success: true, modifiedCount: count, cancelReason: reason, source: 'mock' });
       }
       if (action === 'updateBookingNotes') {
         const booking = updateMockBookingNotes(bookingId, prescription, clinicalNotes, body.followUpDate, body.followUpNotes, body.medicines);
@@ -356,7 +375,7 @@ export async function POST(request) {
         return NextResponse.json({ success: true, source: 'mock' });
       }
       if (action === 'updateBookingStatus') {
-        const booking = updateMockBookingStatus(bookingId, status);
+        const booking = updateMockBookingStatus(bookingId, status, body.cancelReason, body.cancelledBy);
         return NextResponse.json({ success: true, data: booking, source: 'mock' });
       }
       return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });

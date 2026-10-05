@@ -48,23 +48,28 @@ export default function PatientHome({
   const [userCoords, setUserCoords] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Extract unique specialties
-  const uniqueSpecialties = Array.from(new Set([
+  // 11 Standard Medical Specialties
+  const MEDICAL_SPECIALTIES = [
+    'General Physician',
+    'Pediatrics',
+    'Gynecology',
+    'Dermatology',
+    'Orthopedics',
+    'Cardiology',
+    'ENT',
+    'Ophthalmology',
+    'Dentistry',
+    'Diabetology',
+    'Physiotherapy'
+  ];
+
+  // Extract unique specialties from clinics and include the 11 standard medical specialties
+  const uniqueCategories = Array.from(new Set([
     'All',
+    ...MEDICAL_SPECIALTIES,
     ...clinics.map(c => c.specialty).filter(Boolean),
     ...clinics.flatMap(c => (c.doctors || []).map(d => d.specialty).filter(Boolean))
-  ])).map(spec => {
-    const specLower = spec.toLowerCase();
-    if (specLower.includes('general')) return 'General';
-    if (specLower.includes('dental')) return 'Dental';
-    if (specLower.includes('paediatric') || specLower.includes('pediatric')) return 'Paediatric';
-    if (specLower.includes('orthopaedic') || specLower.includes('orthopedic')) return 'Orthopaedic';
-    if (specLower.includes('gynaec')) return 'Gynaecology';
-    if (specLower.includes('dermat')) return 'Dermatology';
-    if (specLower.includes('ophthal')) return 'Ophthalmology';
-    return spec.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-  });
-  const uniqueCategories = Array.from(new Set(uniqueSpecialties));
+  ]));
 
   // Geolocation trigger for "Near Me" filter
   const handleToggleNearMe = () => {
@@ -177,10 +182,26 @@ export default function PatientHome({
     let matchesCategory = selectedCategory === 'All';
     if (!matchesCategory) {
       const catLower = selectedCategory.toLowerCase();
-      const clinicSpecMatches = clinic.specialty && clinic.specialty.toLowerCase().includes(catLower);
-      const doctorSpecMatches = clinic.doctors && clinic.doctors.some(doc => 
-        doc.specialty && doc.specialty.toLowerCase().includes(catLower)
-      );
+      const matchSpec = (val) => {
+        if (!val) return false;
+        const vLower = val.toLowerCase();
+        if (vLower === catLower || vLower.includes(catLower) || catLower.includes(vLower)) return true;
+        if (catLower.includes('general') && (vLower.includes('general') || vLower.includes('physician'))) return true;
+        if (catLower.includes('pediatric') && (vLower.includes('pediatric') || vLower.includes('paediatric') || vLower.includes('child'))) return true;
+        if (catLower.includes('gynecol') && (vLower.includes('gynec') || vLower.includes('gynaec') || vLower.includes('women') || vLower.includes('obgyn'))) return true;
+        if (catLower.includes('dermatol') && (vLower.includes('dermat') || vLower.includes('skin'))) return true;
+        if (catLower.includes('orthoped') && (vLower.includes('orthoped') || vLower.includes('orthopaed') || vLower.includes('bone'))) return true;
+        if (catLower.includes('cardio') && (vLower.includes('cardio') || vLower.includes('heart'))) return true;
+        if (catLower === 'ent' && (vLower.includes('ent') || vLower.includes('ear') || vLower.includes('nose') || vLower.includes('throat'))) return true;
+        if (catLower.includes('ophthalmol') && (vLower.includes('ophthal') || vLower.includes('eye') || vLower.includes('vision'))) return true;
+        if (catLower.includes('dentist') && (vLower.includes('dent') || vLower.includes('tooth') || vLower.includes('teeth'))) return true;
+        if (catLower.includes('diabetol') && (vLower.includes('diabet') || vLower.includes('sugar') || vLower.includes('endocrine'))) return true;
+        if (catLower.includes('physiotherap') && (vLower.includes('physio') || vLower.includes('rehab') || vLower.includes('physical therapy'))) return true;
+        return false;
+      };
+
+      const clinicSpecMatches = matchSpec(clinic.specialty);
+      const doctorSpecMatches = clinic.doctors && clinic.doctors.some(doc => matchSpec(doc.specialty));
       matchesCategory = clinicSpecMatches || doctorSpecMatches;
     }
 
@@ -245,8 +266,35 @@ export default function PatientHome({
     return (b.bookedCount || 0) - (a.bookedCount || 0);
   });
 
+  // Dismissed Doctor-Cancelled Queue Alerts State
+  const [dismissedCancelAlerts, setDismissedCancelAlerts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tokenq_dismissed_cancel_alerts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const handleDismissCancelNotice = (tokenId, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const updated = Array.from(new Set([...dismissedCancelAlerts, String(tokenId)]));
+    setDismissedCancelAlerts(updated);
+    try {
+      localStorage.setItem('tokenq_dismissed_cancel_alerts', JSON.stringify(updated));
+    } catch (err) {}
+  };
+
   // Find active upcoming bookings
   const activeBookings = userBookings.filter(b => b.status === 'waiting' || b.status === 'serving');
+
+  // Find recent doctor-cancelled bookings (only non-dismissed)
+  const doctorCancelledBookings = (userBookings || []).filter(b => 
+    b.status === 'cancelled' && 
+    (b.cancelledBy === 'doctor' || b.cancelledBy === 'clinic-admin' || !b.cancelledBy) &&
+    !dismissedCancelAlerts.includes(String(b._id)) &&
+    new Date(b.cancelledAt || b.createdAt || Date.now()).toDateString() === new Date().toDateString()
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -256,7 +304,13 @@ export default function PatientHome({
         <div className="home-header-top">
           <div>
             <div className="app-brand">Token<span>Q</span></div>
-            <div className="loc">📍 {currentUser?.city || 'Thanjavur'}, Tamil Nadu</div>
+            <div className="loc" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <span>{currentUser?.city || 'Thanjavur'}, Tamil Nadu</span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -270,14 +324,15 @@ export default function PatientHome({
                   window.location.reload();
                 }}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.18)',
+                  background: 'rgba(255, 255, 255, 0.22)',
                   color: 'white',
-                  border: 'none',
-                  padding: '5px 9px',
+                  border: '1px solid rgba(255, 255, 255, 0.35)',
+                  padding: '5px 10px',
                   borderRadius: '6px',
                   fontSize: '11px',
                   cursor: 'pointer',
-                  fontWeight: 600
+                  fontWeight: 600,
+                  backdropFilter: 'blur(4px)'
                 }}
               >
                 Logout 🚪
@@ -287,13 +342,14 @@ export default function PatientHome({
                 onClick={() => onNavigate('auth')}
                 style={{
                   background: 'white',
-                  color: 'var(--green-dark)',
+                  color: '#065F46',
                   border: 'none',
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   borderRadius: '6px',
                   fontSize: '12px',
                   cursor: 'pointer',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                 }}
               >
                 Sign In →
@@ -302,7 +358,10 @@ export default function PatientHome({
           </div>
         </div>
         <div className="search-bar">
-          <span>🔍</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85, flexShrink: 0 }}>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
           <input 
             type="text" 
             placeholder="Search clinics, specialists, or doctors..." 
@@ -317,7 +376,7 @@ export default function PatientHome({
         
         {/* Left Side: All filter chips (single horizontal row on PC, responsive wrap on Mobile) */}
         <div className="smart-filters-left">
-          {/* 🩺 Medical Specialty Dropdown Filter */}
+          {/* Medical Specialty Dropdown Filter */}
           <div style={{ position: 'relative' }}>
             <button 
               className={`smart-chip ${selectedCategory !== 'All' ? 'active' : ''}`}
@@ -331,7 +390,11 @@ export default function PatientHome({
                 cursor: 'pointer'
               }}
             >
-              <span>🩺</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: selectedCategory !== 'All' ? 'var(--green-dark)' : 'currentColor' }}>
+                <path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3" />
+                <path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4" />
+                <circle cx="20" cy="10" r="2" />
+              </svg>
               <span>Specialty: <strong style={{ color: selectedCategory !== 'All' ? 'var(--green-dark)' : 'inherit' }}>{selectedCategory}</strong></span>
               <span style={{ fontSize: '10px', opacity: 0.7, marginLeft: '2px' }}>▾</span>
             </button>
@@ -395,20 +458,30 @@ export default function PatientHome({
             )}
           </div>
 
-          {/* 🎛️ Main Filter Button (Opens full options modal) */}
+          {/* Main Filter Button (Opens full options modal) */}
           <button 
             className={`filter-trigger-btn ${activeFilterCount > 0 ? 'active' : ''}`}
             onClick={() => setShowFilterModal(true)}
             title="Click to customize all clinic filters and sort options"
           >
-            <span>🎛️</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" x2="4" y1="21" y2="14" />
+              <line x1="4" x2="4" y1="10" y2="3" />
+              <line x1="12" x2="12" y1="21" y2="12" />
+              <line x1="12" x2="12" y1="8" y2="3" />
+              <line x1="20" x2="20" y1="21" y2="16" />
+              <line x1="20" x2="20" y1="12" y2="3" />
+              <line x1="1" x2="7" y1="14" y2="14" />
+              <line x1="9" x2="15" y1="8" y2="8" />
+              <line x1="17" x2="23" y1="16" y2="16" />
+            </svg>
             <span>Filters</span>
             {activeFilterCount > 0 && (
               <span className="filter-count-badge">{activeFilterCount}</span>
             )}
           </button>
 
-          {/* Quick Shortcut 1: 📍 Near Me (GPS) */}
+          {/* Quick Shortcut 1: Near Me (GPS) */}
           <button 
             className={`smart-chip ${isNearMeActive ? 'active-near' : ''}`}
             onClick={handleToggleNearMe}
@@ -421,19 +494,22 @@ export default function PatientHome({
               </>
             ) : (
               <>
-                <span>📍</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
                 <span>Near Me {isNearMeActive ? '✓' : ''}</span>
               </>
             )}
           </button>
 
-          {/* Quick Shortcut 2: 🟢 Open Now */}
+          {/* Quick Shortcut 2: Open Now */}
           <button 
             className={`smart-chip ${isOpenNowOnly ? 'active' : ''}`}
             onClick={() => setIsOpenNowOnly(!isOpenNowOnly)}
             title="Show only open clinics"
           >
-            <span>🟢</span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }}></span>
             <span>Open Now {isOpenNowOnly ? '✓' : ''}</span>
           </button>
 
@@ -449,13 +525,16 @@ export default function PatientHome({
           )}
         </div>
 
-        {/* 🔔 Notifications Bell Icon on Far Right */}
+        {/* Notifications Bell Icon on Far Right */}
         <button 
           onClick={onOpenNotifications}
           className="filter-bell-btn"
           title="Notifications & Checkup Reminders"
         >
-          <span>🔔</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
           {unreadNotifCount > 0 && (
             <span className="filter-bell-badge">
               {unreadNotifCount}
@@ -494,9 +573,35 @@ export default function PatientHome({
             {/* Modal Body */}
             <div className="filter-modal-body">
               
+              {/* Section: Medical Specialty */}
+              <div>
+                <div className="filter-sec-title">🩺 Medical Specialty</div>
+                <div className="filter-options-grid" style={{ maxHeight: '180px', overflowY: 'auto', padding: '2px 0' }}>
+                  {uniqueCategories.map(cat => (
+                    <button
+                      key={cat}
+                      className={`filter-option-pill ${selectedCategory === cat ? 'selected' : ''}`}
+                      onClick={() => setSelectedCategory(cat)}
+                      style={{ fontSize: '11.5px', padding: '6px 12px' }}
+                    >
+                      {cat === 'All' ? 'All Specialties' : cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Section 1: Proximity & Location */}
               <div>
-                <div className="filter-sec-title">📍 Location & Distance</div>
+                <div className="filter-sec-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="22" x2="18" y1="12" y2="12" />
+                    <line x1="6" x2="2" y1="12" y2="12" />
+                    <line x1="12" x2="12" y1="6" y2="2" />
+                    <line x1="12" x2="12" y1="22" y2="18" />
+                  </svg>
+                  <span>Location & Distance</span>
+                </div>
                 <div 
                   className={`filter-toggle-row ${isNearMeActive ? 'selected' : ''}`}
                   onClick={handleToggleNearMe}
@@ -506,7 +611,15 @@ export default function PatientHome({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '18px' }}>📍</span>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isNearMeActive ? '#0ea5e9' : 'rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isNearMeActive ? '#fff' : 'var(--text)'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="22" x2="18" y1="12" y2="12" />
+                        <line x1="6" x2="2" y1="12" y2="12" />
+                        <line x1="12" x2="12" y1="6" y2="2" />
+                        <line x1="12" x2="12" y1="22" y2="18" />
+                      </svg>
+                    </div>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
                         Sort by Nearest to Me (GPS)
@@ -671,7 +784,92 @@ export default function PatientHome({
       {/* Clinics and Bookings scrollable area */}
       <div className="scrollable">
         <div className="pad">
-          
+          {/* Doctor Cancelled Slots Notice Banner */}
+          {doctorCancelledBookings.length > 0 && (
+            <div style={{ marginBottom: '14px' }}>
+              <div className="sec-label" style={{ color: '#DC2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Doctor Session Updates</span>
+                <span style={{ fontSize: '11px', color: 'var(--text3)', fontWeight: 500 }}>Click ✕ to dismiss</span>
+              </div>
+              {doctorCancelledBookings.map((cb, idx) => {
+                const clinic = clinics.find(c => String(c._id) === String(cb.clinicId)) || {};
+                return (
+                  <div 
+                    key={cb._id ? `home-doc-cancel-${cb._id}-${idx}` : `home-doc-cancel-${idx}`} 
+                    className="notice"
+                    style={{ 
+                      cursor: 'pointer', 
+                      background: '#FEF2F2', 
+                      borderColor: '#FCA5A5', 
+                      borderLeftColor: '#DC2626',
+                      borderLeftWidth: '4px',
+                      boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)',
+                      position: 'relative'
+                    }}
+                    onClick={() => {
+                      handleDismissCancelNotice(cb._id);
+                      onSelectToken(cb);
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#991B1B' }}>
+                        ⚠️ Doctor Cancelled Session (Token #{cb.tokenNumber})
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="pill pr" style={{ fontSize: '10px', padding: '2px 6px' }}>Cancelled</span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDismissCancelNotice(cb._id, e)}
+                          title="Dismiss this notice"
+                          style={{
+                            background: 'rgba(220, 38, 38, 0.1)',
+                            border: 'none',
+                            color: '#991B1B',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#7F1D1D', marginTop: '3px' }}>
+                      <strong>{clinic.name || 'Clinic'}:</strong> {cb.cancelReason || 'Doctor had to leave clinic early / emergency'}.
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, textDecoration: 'underline' }}>
+                        View Details & Find Another Clinic →
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDismissCancelNotice(cb._id, e)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#7F1D1D',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                          padding: '2px 4px',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Dismiss Notice ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Active Bookings Notice */}
           {activeBookings.length > 0 && (
             <>
@@ -703,12 +901,36 @@ export default function PatientHome({
           {/* Clinics Section Header */}
           <div className="sec-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--green)' }}></span>
-              {isNearMeActive ? 'Clinics sorted by proximity' : 'Clinics near you'} ({sortedClinics.length})
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: isNearMeActive ? '#0284c7' : 'var(--green)' }}></span>
+              {(() => {
+                if (searchQuery.trim()) {
+                  return `Search Results (${sortedClinics.length})`;
+                }
+                if (isNearMeActive) {
+                  return `Nearest Clinics to You (${sortedClinics.length})`;
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                  return `Top ${selectedCategory} Clinics in Thanjavur (${sortedClinics.length})`;
+                }
+                if (isOpenNowOnly) {
+                  return `Clinics Open Right Now (${sortedClinics.length})`;
+                }
+                if (ratingFilter !== 'all') {
+                  return `Highest Rated Clinics (${sortedClinics.length})`;
+                }
+                return `Top & Recommended Clinics in Thanjavur (${sortedClinics.length})`;
+              })()}
             </div>
             {isNearMeActive && userCoords && (
-              <span style={{ fontSize: '10px', color: '#0284c7', textTransform: 'none', fontWeight: 600 }}>
-                📍 GPS Active
+              <span style={{ fontSize: '10px', color: '#0284c7', textTransform: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="22" x2="18" y1="12" y2="12" />
+                  <line x1="6" x2="2" y1="12" y2="12" />
+                  <line x1="12" x2="12" y1="6" y2="2" />
+                  <line x1="12" x2="12" y1="22" y2="18" />
+                </svg>
+                GPS Active
               </span>
             )}
           </div>
@@ -722,11 +944,19 @@ export default function PatientHome({
                 return (
                   <div key={clinic._id ? `home-cl-${clinic._id}-${idx}` : `home-cl-${idx}`} className="card" onClick={() => onSelectClinic(clinic)} style={{ margin: 0 }}>
                     <div className="card-row">
-                      <div className="card-icon" style={{ background: clinic.profilePic ? 'transparent' : (clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : '#E1F5EE'), overflow: 'hidden', padding: 0 }}>
+                      <div className="card-icon" style={{ background: clinic.profilePic ? 'transparent' : (clinic.icon === '🦷' ? '#FAEEDA' : clinic.icon === '👶' ? '#FBEAF0' : 'var(--green-light)'), overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {clinic.profilePic ? (
                           <img src={clinic.profilePic} alt={clinic.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : clinic.icon && clinic.icon !== '🏥' ? (
+                          clinic.icon
                         ) : (
-                          clinic.icon || '🏥'
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 6v4" />
+                            <path d="M10 8h4" />
+                            <path d="M18 22V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v18" />
+                            <path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2" />
+                            <path d="M10 22v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4" />
+                          </svg>
                         )}
                       </div>
                       <div style={{ flex: 1 }}>
@@ -737,8 +967,13 @@ export default function PatientHome({
                             ? uniqueDocSpecs.join(', ') 
                             : clinic.specialty;
                           return (
-                            <div className="card-meta">
-                              📍 {clinic.address} · <span style={{ color: 'var(--green-dark)', fontWeight: 500 }}>{displaySpecialties}</span>
+                            <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6, flexShrink: 0 }}>
+                                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                                <circle cx="12" cy="10" r="3" />
+                              </svg>
+                              <span>{clinic.address ? `${clinic.address} · ` : ''}</span>
+                              <span style={{ color: 'var(--green-dark)', fontWeight: 500 }}>{displaySpecialties}</span>
                             </div>
                           );
                         })()}
@@ -750,8 +985,15 @@ export default function PatientHome({
 
                           {/* Distance badge if location is active */}
                           {formattedDist && (
-                            <span className="pill pdist">
-                              📍 {formattedDist}
+                            <span className="pill pdist" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="22" x2="18" y1="12" y2="12" />
+                                <line x1="6" x2="2" y1="12" y2="12" />
+                                <line x1="12" x2="12" y1="6" y2="2" />
+                                <line x1="12" x2="12" y1="22" y2="18" />
+                              </svg>
+                              <span>{formattedDist}</span>
                             </span>
                           )}
 

@@ -225,18 +225,29 @@ export function createMockBooking(bookingData) {
     ...bookingData
   };
   bookings.push(newBooking);
-  
+
   // Update clinic count
   const clinic = clinics.find(c => c._id === bookingData.clinicId);
   if (clinic) {
     clinic.bookedCount = (clinic.bookedCount || 0) + 1;
   }
-  
+
   return newBooking;
 }
 
-export function updateMockBookingStatus(id, status) {
-  bookings = bookings.map(b => b._id === id ? { ...b, status } : b);
+export function updateMockBookingStatus(id, status, cancelReason = '', cancelledBy = '') {
+  bookings = bookings.map(b => {
+    if (b._id === id) {
+      const updated = { ...b, status };
+      if (status === 'cancelled') {
+        updated.cancelledBy = cancelledBy || 'doctor';
+        updated.cancelReason = cancelReason || (cancelledBy === 'patient' ? 'Cancelled by patient' : 'Doctor had to leave clinic early / Emergency cancellation');
+        updated.cancelledAt = new Date();
+      }
+      return updated;
+    }
+    return b;
+  });
   return bookings.find(b => b._id === id);
 }
 
@@ -259,7 +270,7 @@ export function addMockClinicalEntry({ clinicId, patientName, patientPhone, pati
   }
   const newB = {
     _id: 'booking_' + (bookings.length + 1),
-    tokenNumber: 'E-' + Math.floor(100 + Math.random() * 900),
+    tokenNumber: 'REC-' + Math.floor(1000 + Math.random() * 9000),
     clinicId,
     patientName,
     patientPhone,
@@ -285,13 +296,18 @@ export function deleteMockClinicalEntry(id) {
   return true;
 }
 
-export function cancelMockDoctorSlots(clinicId, doctorName) {
+export function cancelMockDoctorSlots(clinicId, doctorName, cancelReason = 'Doctor had to leave clinic early / Emergency cancellation', cancelledBy = 'doctor') {
   let count = 0;
+  const cleanReq = (doctorName || '').trim().replace(/^dr\.?\s+/i, '').toLowerCase();
   bookings.forEach(b => {
     const matchClinic = !clinicId || String(b.clinicId) === String(clinicId);
-    const matchDoc = !doctorName || b.doctorName === doctorName;
-    if (matchClinic && matchDoc && b.status === 'waiting') {
+    const cleanBDoc = (b.doctorName || '').trim().replace(/^dr\.?\s+/i, '').toLowerCase();
+    const matchDoc = !doctorName || cleanBDoc === cleanReq;
+    if (matchClinic && matchDoc && (b.status === 'waiting' || b.status === 'serving')) {
       b.status = 'cancelled';
+      b.cancelReason = cancelReason;
+      b.cancelledBy = cancelledBy;
+      b.cancelledAt = new Date();
       count++;
     }
   });

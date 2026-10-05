@@ -16,6 +16,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
   const [upiProvider, setUpiProvider] = useState('gpay');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [bookingError, setBookingError] = useState(null);
+  const [existingBooking, setExistingBooking] = useState(null);
 
   // Payment Simulation States
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi', 'card'
@@ -32,6 +34,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
   // Reset inputs when bookingFor changes
   useEffect(() => {
+    setBookingError(null);
+    setExistingBooking(null);
     if (bookingFor === 'self') {
       setPatientName(currentUser?.name || 'Kavitha Rajan');
       setPatientAge(currentUser?.age?.toString() || '34');
@@ -78,7 +82,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
       }
       return;
     }
-    
+
     if (step === 2) {
       onBack();
     } else {
@@ -87,8 +91,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
   };
 
   const toggleComplaint = (complaint) => {
-    setSelectedComplaints(prev => 
-      prev.includes(complaint) 
+    setSelectedComplaints(prev =>
+      prev.includes(complaint)
         ? prev.filter(c => c !== complaint)
         : [...prev, complaint]
     );
@@ -189,6 +193,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
   const submitBooking = async (type) => {
     setIsSubmitting(true);
+    setBookingError(null);
+    setExistingBooking(null);
     const fee = clinic.fee || 100;
     const totalPaid = fee + 5; // platform fee
 
@@ -216,16 +222,22 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
         body: JSON.stringify(bookingData)
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
+        setBookingError(null);
+        setExistingBooking(null);
         setConfirmedBooking(json.data);
         setPaymentSubStep('success');
       } else {
-        alert('Booking failed: ' + json.error);
+        const errorMsg = json.error || 'Unable to confirm booking. Please try again.';
+        setBookingError(errorMsg);
+        if (json.existingBooking) {
+          setExistingBooking(json.existingBooking);
+        }
         setPaymentSubStep('review');
       }
     } catch (e) {
       console.error(e);
-      alert('Error confirming booking');
+      setBookingError('Network error connecting to booking server. Please try again.');
       setPaymentSubStep('review');
     } finally {
       setIsSubmitting(false);
@@ -256,7 +268,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', maxWidth: '750px', margin: '0 auto', position: 'relative' }}>
-      
+
       {/* BANK SMS BANNER */}
       {showBankSms && (
         <div className="sms-banner" onClick={() => setBankOtp(generatedBankOtp)} style={{ cursor: 'pointer' }}>
@@ -272,8 +284,8 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
       {/* Top Navigation */}
       <div className="topbar">
-        <div 
-          className="back-btn" 
+        <div
+          className="back-btn"
           onClick={step === 6 || paymentSubStep === 'success' ? onBack : handleBack}
           style={{ opacity: (paymentSubStep === 'processing') ? 0.3 : 1, pointerEvents: (paymentSubStep === 'processing') ? 'none' : 'auto' }}
         >
@@ -290,7 +302,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
         <div className="step-bar">
           {[2, 3, 4, 5].map(i => (
             <React.Fragment key={i}>
-              <div 
+              <div
                 className={`sdot ${i < step ? 'done' : i === step ? 'act' : 'idle'}`}
                 onClick={() => {
                   if (i < step) {
@@ -310,7 +322,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
       {/* Scrollable Form Body */}
       <div className="scrollable">
         <div className="pad">
-          
+
           {/* STEP 1: Select slot */}
           {step === 1 && (
             <div className="bstep active">
@@ -364,7 +376,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <span className="fi">🤝</span>Someone else
                 </div>
               </div>
-              
+
               {bookingFor !== 'self' && (
                 <div className="alert alert-a">
                   <span>👶</span>
@@ -374,7 +386,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   </div>
                 </div>
               )}
-              
+
               <button className="btn-p" onClick={handleNext}>Continue →</button>
             </div>
           )}
@@ -383,13 +395,13 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
           {step === 3 && (
             <div className="bstep active">
               <div className="sec-label">Patient details</div>
-              
+
               <div className="fg">
                 <label className="fl">Full name</label>
-                <input 
-                  className="fi-input" 
-                  type="text" 
-                  value={patientName} 
+                <input
+                  className="fi-input"
+                  type="text"
+                  value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
                   placeholder="e.g. Kavitha Rajan"
                 />
@@ -398,10 +410,10 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
               <div className="frow">
                 <div className="fg">
                   <label className="fl">Age</label>
-                  <input 
-                    className="fi-input" 
-                    type="number" 
-                    value={patientAge} 
+                  <input
+                    className="fi-input"
+                    type="number"
+                    value={patientAge}
                     onChange={(e) => setPatientAge(e.target.value)}
                     placeholder="34"
                   />
@@ -410,9 +422,9 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <label className="fl">Gender</label>
                   <div className="gender-toggle">
                     {['M', 'F', 'O'].map(g => (
-                      <div 
-                        key={g} 
-                        className={`gbtn ${patientGender === g ? 'sel' : ''}`} 
+                      <div
+                        key={g}
+                        className={`gbtn ${patientGender === g ? 'sel' : ''}`}
                         onClick={() => setPatientGender(g)}
                       >
                         {g === 'M' ? 'Male' : g === 'F' ? 'Female' : 'Other'}
@@ -424,10 +436,10 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
               <div className="fg">
                 <label className="fl">Phone</label>
-                <input 
-                  className="fi-input" 
-                  type="tel" 
-                  value={patientPhone} 
+                <input
+                  className="fi-input"
+                  type="tel"
+                  value={patientPhone}
                   onChange={(e) => setPatientPhone(e.target.value)}
                   placeholder="+91 98765 43210"
                 />
@@ -458,13 +470,13 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
             <div className="bstep active">
               <div className="sec-label">Chief complaint</div>
               <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '10px' }}>Select all that apply</div>
-              
+
               <div className="chips">
                 {complaintsList.map(comp => {
                   const isSel = selectedComplaints.includes(comp);
                   return (
-                    <div 
-                      key={comp} 
+                    <div
+                      key={comp}
                       className={`chip ${isSel ? 'sel' : ''}`}
                       onClick={() => toggleComplaint(comp)}
                     >
@@ -476,9 +488,9 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
               <div className="fg">
                 <label className="fl">Describe (optional)</label>
-                <textarea 
-                  className="fi-textarea" 
-                  value={complaintDesc} 
+                <textarea
+                  className="fi-textarea"
+                  value={complaintDesc}
                   onChange={(e) => setComplaintDesc(e.target.value)}
                   placeholder="e.g. Fever for 2 days, not eating well..."
                 ></textarea>
@@ -504,7 +516,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
               {paymentSubStep === 'review' && (
                 <div className="bstep active">
                   <div className="sec-label">Review your booking</div>
-                  
+
                   <div className="rsum">
                     <div className="rsum-title">🏥 Booking summary</div>
                     <div className="rs-row">
@@ -551,16 +563,135 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                     </div>
                   </div>
 
+                  {bookingError && (
+                    <div style={{
+                      background: '#FEF2F2',
+                      border: '1.5px solid #F87171',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      marginTop: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)',
+                      animation: 'fadeUp .2s ease'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <span style={{ fontSize: '20px', lineHeight: 1 }}>⚠️</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#991B1B' }}>
+                            {existingBooking ? 'Active Token Already Exists' : 'Booking Alert'}
+                          </div>
+                          <div style={{ fontSize: '12.5px', color: '#B91C1C', marginTop: '3px', lineHeight: '1.4' }}>
+                            {bookingError}
+                          </div>
+                        </div>
+                      </div>
+
+                      {existingBooking && (
+                        <div style={{
+                          background: 'white',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          border: '1px solid #FECACA',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>
+                              Your Token for Today
+                            </div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--green-dark)', fontFamily: "'DM Mono', monospace" }}>
+                              {existingBooking.tokenNumber}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#4B5563' }}>
+                              {existingBooking.slot} · {existingBooking.status === 'serving' ? '🟢 Now Serving' : '⏳ In Queue'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onBookingComplete) {
+                                onBookingComplete(existingBooking);
+                              }
+                            }}
+                            style={{
+                              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '7px 12px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>View Live Token</span>
+                            <span>→</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookingError(null);
+                            setExistingBooking(null);
+                            setStep(2);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            color: '#991B1B',
+                            border: '1px solid #FCA5A5',
+                            borderRadius: '6px',
+                            padding: '5px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          👥 Book for Family Member
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookingError(null);
+                            setExistingBooking(null);
+                          }}
+                          style={{
+                            background: '#FEE2E2',
+                            color: '#991B1B',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '5px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ height: '20px' }}></div>
-                  
-                  <button 
+
+                  <button
                     type="button"
-                    className="btn-p" 
+                    className="btn-p"
                     onClick={handleConfirmDirectBooking}
+                    disabled={isSubmitting}
                   >
-                    ✓ Confirm Booking (Get Token)
+                    {isSubmitting ? 'Processing...' : '✓ Confirm Booking (Get Token)'}
                   </button>
-                  
+
                   <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text3)', marginTop: '9px' }}>
                     Instant activation · Secure clinical queuing
                   </div>
@@ -584,7 +715,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                     <div style={{ fontSize: '12px', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                       Enter 4-Digit UPI PIN
                     </div>
-                    
+
                     <div className="pin-dots">
                       {[0, 1, 2, 3].map(index => (
                         <div key={index} className={`pin-dot ${index < upiPin.length ? 'filled' : ''}`}></div>
@@ -603,10 +734,10 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                       <button type="button" className="pin-btn" onClick={() => handleKeypadPress('0')}>
                         0
                       </button>
-                      <button 
-                        type="button" 
-                        className="pin-btn" 
-                        onClick={() => handleKeypadPress('confirm')} 
+                      <button
+                        type="button"
+                        className="pin-btn"
+                        onClick={() => handleKeypadPress('confirm')}
                         style={{ color: 'var(--green)', fontSize: '18px', background: 'var(--green-light)', borderColor: 'var(--green-mid)' }}
                         disabled={upiPin.length !== 4}
                       >
@@ -652,7 +783,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <form onSubmit={handleCardFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div className="fg">
                       <label className="fl">Card Number</label>
-                      <input 
+                      <input
                         type="tel"
                         className="fi-input"
                         placeholder="4111 2222 3333 4444"
@@ -664,7 +795,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
                     <div className="fg">
                       <label className="fl">Cardholder Name</label>
-                      <input 
+                      <input
                         type="text"
                         className="fi-input"
                         placeholder="Kavitha Rajan"
@@ -677,7 +808,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                     <div className="frow">
                       <div className="fg">
                         <label className="fl">Expiry Date</label>
-                        <input 
+                        <input
                           type="tel"
                           className="fi-input"
                           placeholder="MM/YY"
@@ -688,7 +819,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                       </div>
                       <div className="fg">
                         <label className="fl">CVV</label>
-                        <input 
+                        <input
                           type="password"
                           className="fi-input"
                           placeholder="123"
@@ -719,9 +850,9 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                       <div className="bank-desc">
                         A 3D Secure verification code has been sent to your cardholder mobile number. Enter the OTP code below to confirm payment of <strong>₹{total}</strong> to TokenQ.
                       </div>
-                      
+
                       <div className="fg">
-                        <input 
+                        <input
                           type="text"
                           className="fi-input"
                           placeholder="Enter 6-Digit OTP"
@@ -735,17 +866,17 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                       </div>
 
                       <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                        <button 
-                          type="button" 
-                          className="btn-s" 
+                        <button
+                          type="button"
+                          className="btn-s"
                           onClick={() => setPaymentSubStep('card_form')}
                           style={{ flex: 1, padding: '9px' }}
                         >
                           Cancel
                         </button>
-                        <button 
-                          type="submit" 
-                          className="btn-p" 
+                        <button
+                          type="submit"
+                          className="btn-p"
                           style={{ flex: 1, padding: '9px', background: 'var(--blue)' }}
                         >
                           Submit OTP
@@ -790,7 +921,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
 
                   <div className="token-hero" style={{ borderRadius: 'var(--radius)', marginTop: '20px', padding: '20px 16px' }}>
                     <div className="token-lbl">Your Generated Token</div>
-                    <div className="token-num" style={{ color: 'var(--green-mid)', fontSize: '50px' }}>
+                    <div className="token-num" style={{ color: '#FFFFFF', fontSize: '48px', fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
                       {confirmedBooking.tokenNumber}
                     </div>
                     <div className="token-clinic">
@@ -806,9 +937,9 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     type="button"
-                    className="btn-p" 
+                    className="btn-p"
                     style={{ marginTop: '24px' }}
                     onClick={() => {
                       if (onBookingComplete) {
@@ -829,7 +960,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
             <div className="bstep active">
               <div className="token-hero">
                 <div className="token-lbl">Your token</div>
-                <div className="token-num" style={{ color: 'var(--green-mid)' }}>
+                <div className="token-num" style={{ color: '#FFFFFF', fontSize: '38px', fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
                   {confirmedBooking.tokenNumber}
                 </div>
                 <div className="token-clinic">
@@ -848,7 +979,7 @@ export default function BookingFlow({ clinic, doctor, onBack, onBookingComplete,
                   <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Now serving</span>
                   <span style={{ fontSize: '12px', color: 'var(--text2)' }}>Your token</span>
                 </div>
-                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '11px' }}>
                   <span className="qt-lbl" style={{ color: 'var(--green-dark)' }}>A-12</span>
                   <div style={{ flex: 1, height: '2px', background: 'var(--border2)', margin: '0 12px' }}></div>
                   <span className="qt-lbl" style={{ color: 'var(--amber)' }}>{confirmedBooking.tokenNumber}</span>

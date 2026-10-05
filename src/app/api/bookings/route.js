@@ -22,7 +22,7 @@ export async function GET(request) {
       if (clinicId) {
         query.clinicId = clinicId;
       }
-      
+
       const bookings = await Booking.find(query).sort({ createdAt: -1 });
       return NextResponse.json({ success: true, data: bookings, source: 'database' });
     } catch (dbError) {
@@ -81,10 +81,10 @@ export async function POST(request) {
       const now = new Date();
       const utcOffset = 5.5 * 60 * 60 * 1000;
       const istTime = new Date(now.getTime() + utcOffset);
-      
+
       // Set to midnight in IST
       istTime.setUTCHours(0, 0, 0, 0);
-      
+
       // Convert back to real UTC Date bounds for MongoDB query
       const startOfDay = new Date(istTime.getTime() - utcOffset);
       const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -97,9 +97,10 @@ export async function POST(request) {
       });
 
       if (existingActiveBooking) {
-        return NextResponse.json({ 
-          success: false, 
-          error: `Patient "${patientName}" already has an active booking at this clinic today (Token ${existingActiveBooking.tokenNumber})` 
+        return NextResponse.json({
+          success: false,
+          error: `Patient "${patientName}" already has an active booking at ${clinic.name} today (Token ${existingActiveBooking.tokenNumber})`,
+          existingBooking: existingActiveBooking
         }, { status: 400 });
       }
 
@@ -109,15 +110,24 @@ export async function POST(request) {
         createdAt: { $gte: startOfDay, $lte: endOfDay }
       });
 
+      // Filter out non-queue tokens (like REC- clinical notes or old corrupted >100 tokens)
+      const validQueueBookings = todaysBookings.filter(b => {
+        if (!b.tokenNumber) return false;
+        const str = String(b.tokenNumber).trim();
+        if (str.startsWith('E-') || str.startsWith('REC-')) return false;
+        const match = str.match(/^A-(\d+)$/i);
+        if (!match) return false;
+        const num = parseInt(match[1], 10);
+        return num >= 1 && num < 100; // strictly legitimate daily queue tokens
+      });
+
       let nextNum = 1;
-      if (todaysBookings.length > 0) {
-        const numbers = todaysBookings.map(b => {
-          const match = b.tokenNumber.match(/\d+/);
-          return match ? parseInt(match[0], 10) : 0;
+      if (validQueueBookings.length > 0) {
+        const numbers = validQueueBookings.map(b => {
+          const match = String(b.tokenNumber).match(/^A-(\d+)$/i);
+          return match ? parseInt(match[1], 10) : 0;
         });
-        nextNum = Math.max(...numbers) + 1;
-      } else {
-        nextNum = clinic.name.includes('Ramesh') ? 19 : 1;
+        nextNum = Math.max(...numbers, 0) + 1;
       }
 
       const tokenNumber = `A-${nextNum.toString().padStart(2, '0')}`;
@@ -148,32 +158,43 @@ export async function POST(request) {
       return NextResponse.json({ success: true, data: newBooking, source: 'database' });
     } catch (dbError) {
       console.warn('MongoDB connection failed. Saving booking in-memory. Error:', dbError.message);
-      
+
       // Seed fallback token number computation
       const clinicMockBookings = getMockBookingsByClinic(clinicId);
 
-      const existingMock = clinicMockBookings.find(b => 
-        b.patientName.trim().toLowerCase() === patientName.trim().toLowerCase() && 
+      const existingMock = clinicMockBookings.find(b =>
+        b.patientName.trim().toLowerCase() === patientName.trim().toLowerCase() &&
         (b.status === 'waiting' || b.status === 'serving')
       );
       if (existingMock) {
-        return NextResponse.json({ 
-          success: false, 
-          error: `Patient "${patientName}" already has an active booking at this clinic (Token ${existingMock.tokenNumber})` 
+        return NextResponse.json({
+          success: false,
+          error: `Patient "${patientName}" already has an active booking at this clinic (Token ${existingMock.tokenNumber})`,
+          existingBooking: existingMock
         }, { status: 400 });
       }
 
-      let nextNum = 19;
-      if (clinicMockBookings.length > 0) {
-        const numbers = clinicMockBookings.map(b => {
-          const match = b.tokenNumber.match(/\d+/);
-          return match ? parseInt(match[0], 10) : 0;
+      const validMockBookings = clinicMockBookings.filter(b => {
+        if (!b.tokenNumber) return false;
+        const str = String(b.tokenNumber).trim();
+        if (str.startsWith('E-') || str.startsWith('REC-')) return false;
+        const match = str.match(/^A-(\d+)$/i);
+        if (!match) return false;
+        const num = parseInt(match[1], 10);
+        return num >= 1 && num < 100;
+      });
+
+      let nextNum = 1;
+      if (validMockBookings.length > 0) {
+        const numbers = validMockBookings.map(b => {
+          const match = String(b.tokenNumber).match(/^A-(\d+)$/i);
+          return match ? parseInt(match[1], 10) : 0;
         });
-        nextNum = Math.max(...numbers) + 1;
+        nextNum = Math.max(...numbers, 0) + 1;
       }
-      
+
       const tokenNumber = `A-${nextNum.toString().padStart(2, '0')}`;
-      
+
       const newMockBooking = createMockBooking({
         tokenNumber,
         clinicId,

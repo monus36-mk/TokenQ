@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
+const MEDICAL_SPECIALTIES = [
+  'General Physician',
+  'Pediatrics',
+  'Gynecology',
+  'Dermatology',
+  'Orthopedics',
+  'Cardiology',
+  'ENT',
+  'Ophthalmology',
+  'Dentistry',
+  'Diabetology',
+  'Physiotherapy'
+];
+
 export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout, currentUser }) {
   const isClinicAdmin = currentUser?.role === 'clinic-admin';
   const defaultClinicId = isClinicAdmin ? (currentUser?.clinicId || '') : (clinics[0]?._id || '');
@@ -91,8 +105,14 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
-  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const [followUpFilter, setFollowUpFilter] = useState('all'); // 'all', 'today', 'week', 'upcoming', 'overdue'
+  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+
+  // Doctor slot cancellation modal states
+  const [cancellingDoctor, setCancellingDoctor] = useState(null);
+  const [cancelReasonPreset, setCancelReasonPreset] = useState('Doctor had to leave the clinic early due to an emergency.');
+  const [customCancelReason, setCustomCancelReason] = useState('');
+  const [isCancellingSlots, setIsCancellingSlots] = useState(false);
 
   const setQuickFollowUp = (days) => {
     if (!days) {
@@ -125,13 +145,27 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   useEffect(() => {
     if (viewingPatient) {
-      setCurrentNotes(viewingPatient.clinicalNotes || '');
-      setCurrentPrescription(viewingPatient.prescription || '');
-      setCurrentMedicines(viewingPatient.medicines && Array.isArray(viewingPatient.medicines) ? viewingPatient.medicines : []);
-      setCurrentFollowUpDate(viewingPatient.followUpDate ? new Date(viewingPatient.followUpDate).toISOString().split('T')[0] : '');
-      setCurrentFollowUpNotes(viewingPatient.followUpNotes || '');
+      const isTodayActive = (viewingPatient.status === 'waiting' || viewingPatient.status === 'serving') &&
+        new Date(viewingPatient.createdAt || Date.now()).toDateString() === new Date().toDateString();
+
+      if (isTodayActive && (viewingPatient.clinicalNotes || viewingPatient.prescription || (viewingPatient.medicines && viewingPatient.medicines.length > 0))) {
+        // Today's ongoing consultation
+        setCurrentNotes(viewingPatient.clinicalNotes || '');
+        setCurrentPrescription(viewingPatient.prescription || '');
+        setCurrentMedicines(viewingPatient.medicines && Array.isArray(viewingPatient.medicines) ? viewingPatient.medicines : []);
+        setCurrentFollowUpDate(viewingPatient.followUpDate ? new Date(viewingPatient.followUpDate).toISOString().split('T')[0] : '');
+        setCurrentFollowUpNotes(viewingPatient.followUpNotes || '');
+        setEditingRecordId(viewingPatient._id);
+      } else {
+        // DEFAULT: Clean New Entry for fresh consultation
+        setCurrentNotes('');
+        setCurrentPrescription('');
+        setCurrentMedicines([]);
+        setCurrentFollowUpDate('');
+        setCurrentFollowUpNotes('');
+        setEditingRecordId(null);
+      }
       setCurrentPatientEmail(viewingPatient.patientEmail || viewingPatient.email || '');
-      setEditingRecordId(viewingPatient._id);
       setExpandedHistoryId(null);
     } else {
       setCurrentNotes('');
@@ -200,9 +234,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   const [filterDoctor, setFilterDoctor] = useState('All');
   const [formDoctors, setFormDoctors] = useState([
-    { name: '', specialty: 'General', timings: '9:00 AM – 1:00 PM', session: 'Morning' }
+    { name: '', specialty: 'General Physician', timings: '9:00 AM – 1:00 PM', session: 'Morning' }
   ]);
-  const [newDoc, setNewDoc] = useState({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
+  const [newDoc, setNewDoc] = useState({ name: '', specialty: 'General Physician', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
   const [docError, setDocError] = useState('');
   const [editingDoc, setEditingDoc] = useState(null);
 
@@ -213,7 +247,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
   const [newClinic, setNewClinic] = useState({
     name: '',
-    specialty: 'General',
+    specialty: 'General Physician',
     address: '',
     fee: '',
     contact: '',
@@ -227,7 +261,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [onboardForm, setOnboardForm] = useState({
-    specialty: 'General',
+    specialty: 'General Physician',
     icon: '🏥',
     address: '',
     latitude: '',
@@ -435,7 +469,12 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
     }
     setIsSavingNotes(true);
     try {
-      const targetBookingId = editingRecordId || viewingPatient._id;
+      const isTodayActiveToken = (viewingPatient.status === 'waiting' || viewingPatient.status === 'serving') &&
+        new Date(viewingPatient.createdAt || Date.now()).toDateString() === new Date().toDateString();
+
+      const isEditing = Boolean(editingRecordId);
+      const targetBookingId = editingRecordId || (isTodayActiveToken ? viewingPatient._id : null);
+      const isNewRecord = !isEditing && !isTodayActiveToken;
 
       const res = await fetch('/api/admin', {
         method: 'POST',
@@ -444,7 +483,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           action: 'addClinicalEntry',
           clinicId: viewingPatient.clinicId || clinic._id || selectedClinicId,
           bookingId: targetBookingId,
-          isNewRecord: false,
+          isNewRecord,
           patientName: viewingPatient.patientName,
           patientPhone: viewingPatient.patientPhone,
           patientAge: viewingPatient.patientAge,
@@ -475,7 +514,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
           followUpNotes: currentFollowUpNotes || ''
         } : null);
 
-        setEditingRecordId(targetBookingId);
+        if (json.data && json.data._id) {
+          setEditingRecordId(json.data._id);
+        }
 
         if (onRefresh) onRefresh();
       } else {
@@ -543,7 +584,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
       const json = await res.json();
       if (json.success) {
         alert(`Doctor ${newDoc.name} registered successfully!`);
-        setNewDoc({ name: '', specialty: 'General', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
+        setNewDoc({ name: '', specialty: 'General Physician', session: 'Morning', timings: '9:00 AM – 1:00 PM', qualification: '', experience: '' });
         onRefresh();
       } else {
         setDocError(json.error || 'Failed to add doctor');
@@ -838,12 +879,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     onChange={(e) => setOnboardForm({ ...onboardForm, specialty: e.target.value })}
                     style={{ background: 'var(--surface2)', cursor: 'pointer', width: '100%' }}
                   >
-                    <option value="General">General Practice</option>
-                    <option value="Paediatrics">Paediatrics</option>
-                    <option value="Dental">Dental Care</option>
-                    <option value="Orthopaedics">Orthopaedics</option>
-                    <option value="Dermatology">Dermatology</option>
-                    <option value="Cardiology">Cardiology</option>
+                    {MEDICAL_SPECIALTIES.map(spec => (
+                      <option key={spec} value={spec}>{spec}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -855,14 +893,20 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     onChange={(e) => setOnboardForm({ ...onboardForm, icon: e.target.value })}
                     style={{ background: 'var(--surface2)', cursor: 'pointer', width: '100%' }}
                   >
-                    <option value="🏥">🏥 Clinic</option>
-                    <option value="🦷">🦷 Dental</option>
-                    <option value="👶">👶 Baby</option>
-                    <option value="🦴">🦴 Bone</option>
+                    <option value="🏥">🏥 General Clinic</option>
+                    <option value="🩺">🩺 General Physician</option>
+                    <option value="👶">👶 Pediatrics</option>
+                    <option value="🌸">🌸 Gynecology</option>
+                    <option value="✨">✨ Dermatology</option>
+                    <option value="🦴">🦴 Orthopedics</option>
+                    <option value="❤️">❤️ Cardiology</option>
+                    <option value="👂">👂 ENT</option>
+                    <option value="👁️">👁️ Ophthalmology</option>
+                    <option value="🦷">🦷 Dentistry</option>
+                    <option value="🩸">🩸 Diabetology</option>
+                    <option value="🏃">🏃 Physiotherapy</option>
                     <option value="👩‍⚕️">👩‍⚕️ Doctor (F)</option>
                     <option value="👨‍⚕️">👨‍⚕️ Doctor (M)</option>
-                    <option value="👁️">👁️ Eye</option>
-                    <option value="❤️">❤️ Heart</option>
                   </select>
                 </div>
               </div>
@@ -1294,15 +1338,15 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 </div>
 
                 <div className="sec-label">
-                  {filterDoctor === 'All' 
-                    ? `All Registered Patients (${filteredPatients.length})` 
+                  {filterDoctor === 'All'
+                    ? `All Registered Patients (${filteredPatients.length})`
                     : `Patients of ${formatDocName(filterDoctor)} (${filteredPatients.length})`}
                 </div>
 
                 {filteredPatients.length === 0 ? (
                   <div style={{ padding: '30px', textAlign: 'center', background: 'var(--surface2)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: '13px' }}>
-                    {patientSearchQuery 
-                      ? 'No matching patients found.' 
+                    {patientSearchQuery
+                      ? 'No matching patients found.'
                       : filterDoctor !== 'All'
                         ? `No patient records found for ${formatDocName(filterDoctor)}.`
                         : 'No patient records found for this clinic.'}
@@ -1534,8 +1578,8 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                     <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>⏰</span>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>No follow-up checkups found for this filter</div>
                     <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                      {filterDoctor !== 'All' 
-                        ? `No scheduled follow-ups for ${formatDocName(filterDoctor)} in this filter.` 
+                      {filterDoctor !== 'All'
+                        ? `No scheduled follow-ups for ${formatDocName(filterDoctor)} in this filter.`
                         : 'When you set a follow-up date while consulting patients, it will appear here.'}
                     </div>
                   </div>
@@ -1909,13 +1953,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                               value={editingDoc.specialty}
                               onChange={(e) => setEditingDoc({ ...editingDoc, specialty: e.target.value })}
                             >
-                              <option value="General">General</option>
-                              <option value="Dental">Dental</option>
-                              <option value="Paediatric">Paediatric</option>
-                              <option value="Orthopaedic">Orthopaedic</option>
-                              <option value="Gynaecology">Gynaecology</option>
-                              <option value="Dermatology">Dermatology</option>
-                              <option value="Ophthalmology">Ophthalmology</option>
+                              {MEDICAL_SPECIALTIES.map(spec => (
+                                <option key={spec} value={spec}>{spec}</option>
+                              ))}
                             </select>
                           </div>
 
@@ -2039,11 +2079,10 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           {/* Cancel Slots / Clear queue button */}
                           <button
                             className="act-btn danger"
-                            onClick={async () => {
-                              if (window.confirm(`Are you sure you want to cancel all remaining waiting slots for ${doc.name}? All waiting patients will be marked as cancelled.`)) {
-                                await handleAdminAction({ action: 'cancelDoctorSlots', doctorName: doc.name });
-                                alert(`Remaining waiting slots for ${doc.name} have been cancelled.`);
-                              }
+                            onClick={() => {
+                              setCancellingDoctor(doc);
+                              setCancelReasonPreset('Doctor had to leave the clinic early due to an emergency.');
+                              setCustomCancelReason('');
                             }}
                             style={{ margin: 0, padding: '8px 10px', fontSize: '11px' }}
                           >
@@ -2085,13 +2124,9 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       value={newDoc.specialty}
                       onChange={(e) => setNewDoc({ ...newDoc, specialty: e.target.value })}
                     >
-                      <option value="General">General</option>
-                      <option value="Dental">Dental</option>
-                      <option value="Paediatric">Paediatric</option>
-                      <option value="Orthopaedic">Orthopaedic</option>
-                      <option value="Gynaecology">Gynaecology</option>
-                      <option value="Dermatology">Dermatology</option>
-                      <option value="Ophthalmology">Ophthalmology</option>
+                      {MEDICAL_SPECIALTIES.map(spec => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -2360,10 +2395,10 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                     {/* TWO COLUMN CLINICAL WORKSPACE */}
                     <div className="admin-consult-grid">
-                      
+
                       {/* LEFT COLUMN: Patient Info, Chief Complaints & Clinical Assessment */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        
+
                         {/* Patient Profile Card */}
                         <div style={{ background: 'var(--surface2)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)' }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
@@ -2437,12 +2472,15 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                           flexDirection: 'column',
                           gap: '10px'
                         }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '15px' }}>📋</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '15px' }}>{editingRecordId ? '✏️' : '🩺'}</span>
                               <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: editingRecordId ? 'var(--amber-dark)' : 'var(--green-dark)' }}>
-                                {editingRecordId ? 'Edit Clinical Diagnosis' : 'Clinical Notes & Diagnosis'}
+                                {editingRecordId ? 'Edit Previous Visit Record' : 'New Clinical Consultation & Diagnosis'}
                               </h4>
+                              <span className={editingRecordId ? 'pill pa' : 'pill pg'} style={{ fontSize: '10.5px', padding: '2px 8px', fontWeight: 600 }}>
+                                {editingRecordId ? 'Editing Past Record' : '+ New Entry Mode'}
+                              </span>
                             </div>
                             {editingRecordId && (
                               <button
@@ -2458,15 +2496,18 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                                 style={{
                                   background: 'var(--surface)',
                                   border: '1px solid var(--border)',
-                                  borderRadius: '4px',
-                                  padding: '3px 8px',
-                                  fontSize: '11px',
+                                  borderRadius: '5px',
+                                  padding: '4px 10px',
+                                  fontSize: '11.5px',
                                   fontWeight: 600,
-                                  color: 'var(--text2)',
-                                  cursor: 'pointer'
+                                  color: 'var(--green-dark)',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
                                 }}
                               >
-                                + New Entry
+                                ➕ Switch to New Entry
                               </button>
                             )}
                           </div>
@@ -2540,7 +2581,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
 
                       {/* RIGHT COLUMN: Digital Prescription (Rx) & Follow-up Plan */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        
+
                         {/* Digital Prescription Builder */}
                         <div style={{
                           border: '1.5px solid rgba(16, 185, 129, 0.35)',
@@ -2762,97 +2803,8 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       flexWrap: 'wrap',
                       gap: '10px'
                     }}>
+                      {/* LHS: Patient Communication & Queue Controls */}
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveNotes(false)}
-                          disabled={isSavingNotes}
-                          style={{
-                            background: editingRecordId ? 'var(--amber-dark, #B45309)' : 'var(--green-dark, #0F6E56)',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '9px 18px',
-                            fontSize: '13px',
-                            fontWeight: 700,
-                            cursor: isSavingNotes ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-                            opacity: isSavingNotes ? 0.7 : 1,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                        >
-                          {isSavingNotes ? '⏳ Saving...' : editingRecordId ? '💾 Update Record ✓' : '💾 Save & Send Rx to Patient ✓'}
-                        </button>
-
-                        {viewingPatient.patientPhone && (
-                          <a
-                            href={getPrescriptionWhatsAppLink(
-                              viewingPatient.patientPhone,
-                              viewingPatient.patientName,
-                              currentPrescription,
-                              currentNotes,
-                              currentMedicines,
-                              currentFollowUpDate,
-                              currentFollowUpNotes
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() => handleSaveNotes(true)}
-                            style={{
-                              background: '#25D366',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              padding: '9px 14px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
-                          >
-                            💬 Send to WhatsApp
-                          </a>
-                        )}
-
-                        {(currentNotes || currentPrescription || currentMedicines.length > 0 || currentFollowUpDate) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCurrentNotes('');
-                              setCurrentPrescription('');
-                              setCurrentMedicines([]);
-                              setCurrentFollowUpDate('');
-                              setCurrentFollowUpNotes('');
-                              setEditingRecordId(null);
-                            }}
-                            style={{
-                              background: 'var(--surface)',
-                              color: 'var(--text2)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '6px',
-                              padding: '8px 12px',
-                              fontSize: '12px',
-                              fontWeight: 500,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            🧹 Clear Form
-                          </button>
-                        )}
-
-                        {showSavedFeedback && (
-                          <span style={{ color: 'var(--green-dark)', fontSize: '12px', fontWeight: 600 }}>
-                            ✅ Saved to history! Ready for next entry.
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         {viewingPatient.patientPhone && (
                           <>
                             <a
@@ -2941,8 +2893,15 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                         {viewingPatient.status !== 'done' && viewingPatient.status !== 'cancelled' && (
                           <button
                             onClick={() => {
-                              if (confirm('Are you sure you want to cancel this booking?')) {
-                                handleAdminAction({ action: 'updateBookingStatus', bookingId: viewingPatient._id, status: 'cancelled' });
+                              const reason = prompt('Please enter reason for cancelling this patient token (shown to patient):', 'Doctor had to leave clinic early / emergency');
+                              if (reason !== null) {
+                                handleAdminAction({
+                                  action: 'updateBookingStatus',
+                                  bookingId: viewingPatient._id,
+                                  status: 'cancelled',
+                                  cancelledBy: 'doctor',
+                                  cancelReason: reason.trim() || 'Doctor had to leave clinic early / emergency'
+                                });
                                 setViewingPatient(null);
                               }
                             }}
@@ -2960,6 +2919,97 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                             Cancel Token
                           </button>
                         )}
+                      </div>
+
+                      {/* RHS: Update / Save Clinical Notes & Send Rx */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {showSavedFeedback && (
+                          <span style={{ color: 'var(--green-dark)', fontSize: '12px', fontWeight: 600 }}>
+                            ✅ Saved to history! Ready for next entry.
+                          </span>
+                        )}
+
+                        {(currentNotes || currentPrescription || currentMedicines.length > 0 || currentFollowUpDate) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentNotes('');
+                              setCurrentPrescription('');
+                              setCurrentMedicines([]);
+                              setCurrentFollowUpDate('');
+                              setCurrentFollowUpNotes('');
+                              setEditingRecordId(null);
+                            }}
+                            style={{
+                              background: 'var(--surface)',
+                              color: 'var(--text2)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '6px',
+                              padding: '8px 12px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🧹 Clear Form
+                          </button>
+                        )}
+
+                        {viewingPatient.patientPhone && (
+                          <a
+                            href={getPrescriptionWhatsAppLink(
+                              viewingPatient.patientPhone,
+                              viewingPatient.patientName,
+                              currentPrescription,
+                              currentNotes,
+                              currentMedicines,
+                              currentFollowUpDate,
+                              currentFollowUpNotes
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => handleSaveNotes(true)}
+                            style={{
+                              background: '#25D366',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '9px 14px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            💬 Send to WhatsApp
+                          </a>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleSaveNotes(false)}
+                          disabled={isSavingNotes}
+                          style={{
+                            background: editingRecordId ? 'var(--amber-dark, #B45309)' : 'var(--green-dark, #0F6E56)',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '9px 18px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            cursor: isSavingNotes ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                            opacity: isSavingNotes ? 0.7 : 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          {isSavingNotes ? '⏳ Saving...' : editingRecordId ? '💾 Update Record ✓' : '💾 Save New Entry & Rx ✓'}
+                        </button>
                       </div>
                     </div>
 
@@ -3157,6 +3207,177 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Slot Cancellation Confirmation & Reason Modal */}
+      {cancellingDoctor && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '16px'
+          }}
+          onClick={() => !isCancellingSlots && setCancellingDoctor(null)}
+        >
+          <div
+            className="filter-modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '480px', width: '100%', borderRadius: '14px', background: 'var(--surface)', border: '1.5px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          >
+            <div className="filter-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="filter-modal-title" style={{ color: '#DC2626', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 700 }}>
+                <span>🚫</span>
+                <span>Cancel Doctor Consultation Slots</span>
+              </div>
+              <button
+                onClick={() => !isCancellingSlots && setCancellingDoctor(null)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--text3)', cursor: 'pointer', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="filter-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px 18px' }}>
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '12px 14px', borderRadius: '8px', fontSize: '13px', color: '#991B1B', lineHeight: '1.45' }}>
+                <strong>⚠️ Notice:</strong> You are cancelling all remaining waiting/active consultation slots for <strong>{cancellingDoctor.name}</strong>. Patients will immediately see this reason on their live tracker and mobile app, and be guided to find alternative clinics.
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', display: 'block', marginBottom: '8px' }}>
+                  Select Cancellation Reason for Patients:
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  {[
+                    'Doctor had to leave the clinic early due to an emergency.',
+                    'Doctor is unavailable today due to illness / personal reasons.',
+                    'Clinic consultation session ended early for today.',
+                    'Doctor called for urgent emergency surgery / hospital duty.',
+                    'Custom Reason'
+                  ].map(reason => (
+                    <label
+                      key={reason}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${cancelReasonPreset === reason ? '#DC2626' : 'var(--border)'}`,
+                        background: cancelReasonPreset === reason ? 'rgba(239, 68, 68, 0.05)' : 'var(--surface2)',
+                        fontSize: '12.5px',
+                        cursor: 'pointer',
+                        color: cancelReasonPreset === reason ? '#991B1B' : 'var(--text)',
+                        fontWeight: cancelReasonPreset === reason ? 600 : 400
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="cancelReason"
+                        checked={cancelReasonPreset === reason}
+                        onChange={() => setCancelReasonPreset(reason)}
+                        style={{ accentColor: '#DC2626' }}
+                      />
+                      <span>{reason}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {cancelReasonPreset === 'Custom Reason' && (
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: '4px' }}>
+                    Type Custom Reason for Patients:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Clinic power disruption / Doctor called away for hospital emergency"
+                    value={customCancelReason}
+                    onChange={e => setCustomCancelReason(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '6px',
+                      border: '1.5px solid var(--border)',
+                      background: 'var(--surface)',
+                      fontSize: '13px',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      color: 'var(--text)'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="filter-modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '12px 18px', display: 'flex', gap: '10px', background: 'var(--surface2)' }}>
+              <button
+                onClick={() => setCancellingDoctor(null)}
+                disabled={isCancellingSlots}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Keep Slots (Back)
+              </button>
+              <button
+                onClick={async () => {
+                  const finalReason = cancelReasonPreset === 'Custom Reason'
+                    ? (customCancelReason.trim() || 'Doctor had to leave clinic early / Emergency')
+                    : cancelReasonPreset;
+
+                  setIsCancellingSlots(true);
+                  try {
+                    await handleAdminAction({
+                      action: 'cancelDoctorSlots',
+                      doctorName: cancellingDoctor.name,
+                      cancelReason: finalReason,
+                      cancelledBy: 'doctor'
+                    });
+                    setCancellingDoctor(null);
+                    alert(`Remaining waiting slots for ${cancellingDoctor.name} have been cancelled. Patients have been notified.`);
+                  } catch (err) {
+                    alert('Failed to cancel slots: ' + err.message);
+                  } finally {
+                    setIsCancellingSlots(false);
+                  }
+                }}
+                disabled={isCancellingSlots}
+                style={{
+                  flex: 1.5,
+                  padding: '10px',
+                  background: '#DC2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
+                  opacity: isCancellingSlots ? 0.7 : 1
+                }}
+              >
+                {isCancellingSlots ? 'Cancelling Slots...' : 'Confirm & Cancel Slots ❌'}
+              </button>
             </div>
           </div>
         </div>

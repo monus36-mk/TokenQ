@@ -99,6 +99,18 @@ const BookingSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  cancelReason: {
+    type: String,
+    default: '',
+  },
+  cancelledBy: {
+    type: String,
+    default: '', // 'doctor', 'patient', 'clinic-admin'
+  },
+  cancelledAt: {
+    type: Date,
+    required: false,
+  },
   feePaid: {
     type: Number,
     required: true,
