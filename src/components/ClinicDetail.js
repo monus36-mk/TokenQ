@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { isBookingExpired } from '@/lib/slotUtils';
+import { StarIcon, StarRatingRow } from './StarIcon';
 
 const isClinicOpen = (clinic) => {
   if (!clinic) return false;
@@ -17,6 +19,8 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
   const booked = bookings.filter(b =>
     b.clinicId === clinic._id &&
     b.status !== 'cancelled' &&
+    b.status !== 'expired' &&
+    !isBookingExpired(b) &&
     new Date(b.createdAt).toDateString() === new Date().toDateString()
   ).length;
 
@@ -33,7 +37,11 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
   const totalDoctorsCount = clinicDoctors.length;
   const activeDoctorsCount = clinicDoctors.filter(d => !d.isUnavailable && !d.isPaused).length;
 
-  const reviews = clinic.reviews || [];
+  const reviews = [...(clinic.reviews || [])].sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
   const filteredReviews = selectedDocFilter
     ? reviews.filter(r => r.doctorName === selectedDocFilter)
     : reviews;
@@ -108,8 +116,16 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
           <div className="hero-icon" style={{ padding: clinic.profilePic ? 0 : '', overflow: 'hidden' }}>
             {clinic.profilePic ? (
               <img src={clinic.profilePic} alt={clinic.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+            ) : clinic.icon && clinic.icon !== '🏥' ? (
+              clinic.icon
             ) : (
-              clinic.icon || '🏥'
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 6v4" />
+                <path d="M10 8h4" />
+                <path d="M18 22V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v18" />
+                <path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2" />
+                <path d="M10 22v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4" />
+              </svg>
             )}
           </div>
           <div>
@@ -127,8 +143,10 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                   New · No reviews yet
                 </span>
               ) : (
-                <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.9)', fontSize: '11px', cursor: 'pointer' }} onClick={() => document.getElementById('reviews-section').scrollIntoView({ behavior: 'smooth' })}>
-                  {clinic.rating} ⭐ · {clinic.ratingCount} reviews
+                <span className="pill" style={{ background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.9)', fontSize: '11px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }} onClick={() => document.getElementById('reviews-section').scrollIntoView({ behavior: 'smooth' })}>
+                  <span>{clinic.rating}</span>
+                  <StarIcon size={12} fill="#FBBF24" stroke="#F59E0B" />
+                  <span>· {clinic.ratingCount} reviews</span>
                 </span>
               )}
             </div>
@@ -293,7 +311,7 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
               }).length;
 
               const docWaitingCount = bookings.filter(b => {
-                if (b.clinicId !== clinic._id || b.doctorName !== doc.name || b.status !== 'waiting') {
+                if (b.clinicId !== clinic._id || b.doctorName !== doc.name || b.status !== 'waiting' || isBookingExpired(b, doc.delayMinutes)) {
                   return false;
                 }
                 const bDate = new Date(b.createdAt);
@@ -448,8 +466,8 @@ export default function ClinicDetail({ clinic, onBack, onStartBooking, currentUs
                         {new Date(rev.createdAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <div style={{ fontSize: '14px', color: '#F59E0B', margin: '4px 0' }}>
-                      {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
+                    <div style={{ margin: '4px 0' }}>
+                      <StarRatingRow rating={rev.rating} size={13} />
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{rev.comment}</div>
                   </div>

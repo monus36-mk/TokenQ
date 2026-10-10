@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { isBookingExpired } from '@/lib/slotUtils';
+import { ClinicLogo } from './ClinicLogo';
 
 const MEDICAL_SPECIALTIES = [
   'General Physician',
@@ -13,6 +15,451 @@ const MEDICAL_SPECIALTIES = [
   'Diabetology',
   'Physiotherapy'
 ];
+
+function TimeRangeSelector({ label = "Timings", value, onChange }) {
+  const parseParts = (str) => {
+    if (!str || typeof str !== 'string') {
+      return { sH: '9', sM: '00', sA: 'AM', eH: '1', eM: '00', eA: 'PM' };
+    }
+    const regex = /(\d{1,2})(?:[:.](\d{1,2}))?\s*(am|pm)?/gi;
+    const matches = [];
+    let m;
+    while ((m = regex.exec(str)) !== null) {
+      matches.push({
+        h: m[1],
+        min: m[2] ? m[2].padStart(2, '0') : '00',
+        ampm: m[3] ? m[3].toUpperCase() : null
+      });
+    }
+
+    if (matches.length >= 2) {
+      let sH = parseInt(matches[0].h, 10);
+      let eH = parseInt(matches[1].h, 10);
+      if (isNaN(sH) || sH < 1 || sH > 12) sH = 9;
+      if (isNaN(eH) || eH < 1 || eH > 12) eH = 1;
+
+      let sA = matches[0].ampm;
+      let eA = matches[1].ampm;
+
+      if (!sA && !eA) {
+        sA = sH >= 7 && sH <= 11 ? 'AM' : 'PM';
+        eA = 'PM';
+      } else if (!sA && eA) {
+        sA = eA === 'PM' && sH >= 8 && sH <= 11 ? 'AM' : eA;
+      } else if (sA && !eA) {
+        eA = sA === 'AM' && eH >= 1 && eH <= 6 ? 'PM' : sA;
+      }
+
+      return {
+        sH: String(sH),
+        sM: matches[0].min.slice(0, 2),
+        sA: sA || 'AM',
+        eH: String(eH),
+        eM: matches[1].min.slice(0, 2),
+        eA: eA || 'PM'
+      };
+    } else if (matches.length === 1) {
+      let sH = parseInt(matches[0].h, 10);
+      if (isNaN(sH) || sH < 1 || sH > 12) sH = 9;
+      const am = matches[0].ampm || 'AM';
+      let nextH = (sH % 12) + 3;
+      if (nextH > 12) nextH = nextH - 12;
+      return {
+        sH: String(sH),
+        sM: matches[0].min.slice(0, 2),
+        sA: am,
+        eH: String(nextH),
+        eM: matches[0].min.slice(0, 2),
+        eA: am === 'AM' && nextH >= 1 && nextH <= 5 ? 'PM' : am
+      };
+    }
+    return { sH: '9', sM: '00', sA: 'AM', eH: '1', eM: '00', eA: 'PM' };
+  };
+
+  const [parts, setParts] = useState(() => parseParts(value));
+  const lastEmittedValueRef = useRef('');
+
+  // Sync external changes (e.g. Session preset selected by user or initial load)
+  useEffect(() => {
+    if (value && value === lastEmittedValueRef.current) {
+      return; // Skip re-parsing if this change originated from local user interaction
+    }
+    setParts(parseParts(value));
+    lastEmittedValueRef.current = value || '';
+  }, [value]);
+
+  const emitChange = (nextParts) => {
+    const sH = parseInt(nextParts.sH, 10);
+    const sM = parseInt(nextParts.sM, 10);
+    const eH = parseInt(nextParts.eH, 10);
+    const eM = parseInt(nextParts.eM, 10);
+
+    const validSH = (!isNaN(sH) && sH >= 1 && sH <= 12) ? sH : 9;
+    const validSM = (!isNaN(sM) && sM >= 0 && sM <= 59) ? String(sM).padStart(2, '0') : '00';
+    const validEH = (!isNaN(eH) && eH >= 1 && eH <= 12) ? eH : 1;
+    const validEM = (!isNaN(eM) && eM >= 0 && eM <= 59) ? String(eM).padStart(2, '0') : '00';
+
+    const formatted = `${validSH}:${validSM} ${nextParts.sA} – ${validEH}:${validEM} ${nextParts.eA}`;
+    lastEmittedValueRef.current = formatted;
+    if (onChange) onChange(formatted);
+  };
+
+  const handleHourChange = (field, text) => {
+    const digits = text.replace(/\D/g, '').slice(0, 2);
+    const updated = { ...parts, [field]: digits };
+    setParts(updated);
+
+    const num = parseInt(digits, 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) {
+      emitChange({ ...updated, [field]: String(num) });
+    }
+  };
+
+  const handleHourBlur = (field) => {
+    let num = parseInt(parts[field], 10);
+    if (isNaN(num) || num < 1) {
+      num = field === 'sH' ? 9 : 1;
+    } else if (num > 12) {
+      num = 12;
+    }
+    const updated = { ...parts, [field]: String(num) };
+    setParts(updated);
+    emitChange(updated);
+  };
+
+  const stepHour = (field, delta) => {
+    let cur = parseInt(parts[field], 10);
+    if (isNaN(cur) || cur < 1 || cur > 12) {
+      cur = field === 'sH' ? 9 : 1;
+    }
+    let next;
+    if (delta > 0) {
+      next = (cur % 12) + 1; // 12 -> 1, 11 -> 12, 1 -> 2
+    } else {
+      next = cur === 1 ? 12 : cur - 1; // 1 -> 12, 12 -> 11, 2 -> 1
+    }
+    const updated = { ...parts, [field]: String(next) };
+    setParts(updated);
+    emitChange(updated);
+  };
+
+  const handleMinuteChange = (field, text) => {
+    const digits = text.replace(/\D/g, '').slice(0, 2);
+    const updated = { ...parts, [field]: digits };
+    setParts(updated);
+
+    const num = parseInt(digits, 10);
+    if (!isNaN(num) && num >= 0 && num <= 59 && digits.length === 2) {
+      emitChange(updated);
+    }
+  };
+
+  const handleMinuteBlur = (field) => {
+    let num = parseInt(parts[field], 10);
+    if (isNaN(num) || num < 0) num = 0;
+    if (num > 59) num = 59;
+    const formattedMin = String(num).padStart(2, '0');
+    const updated = { ...parts, [field]: formattedMin };
+    setParts(updated);
+    emitChange(updated);
+  };
+
+  const stepMinute = (field, delta) => {
+    let cur = parseInt(parts[field], 10);
+    if (isNaN(cur) || cur < 0 || cur > 59) cur = 0;
+    let next = cur + (delta * 5);
+    if (next >= 60) next = 0;
+    else if (next < 0) next = 55;
+    const formattedMin = String(next).padStart(2, '0');
+    const updated = { ...parts, [field]: formattedMin };
+    setParts(updated);
+    emitChange(updated);
+  };
+
+  const handleAmpmChange = (field, ampm) => {
+    const updated = { ...parts, [field]: ampm };
+    setParts(updated);
+    emitChange(updated);
+  };
+
+  const selectStyle = {
+    padding: '3px 6px',
+    fontSize: '12px',
+    fontWeight: 700,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    color: 'var(--green-dark)',
+    outline: 'none',
+    cursor: 'pointer',
+    height: '30px'
+  };
+
+  const stepperBtnStyle = {
+    flex: 1,
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    padding: 0,
+    margin: 0,
+    fontSize: '7px',
+    lineHeight: '1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--text2)',
+    userSelect: 'none'
+  };
+
+  return (
+    <div className="fg" style={{ margin: 0 }}>
+      {label && <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '3px' }}>{label} *</label>}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '6px 8px',
+        background: 'var(--surface2)',
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+        padding: '5px 10px',
+        minHeight: '40px'
+      }}>
+        {/* From Section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text2)', marginRight: '2px', textTransform: 'uppercase' }}>From</span>
+          
+          {/* From Hour with Steppers */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            overflow: 'hidden',
+            height: '30px',
+            boxSizing: 'border-box'
+          }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={2}
+              value={parts.sH}
+              onChange={(e) => handleHourChange('sH', e.target.value)}
+              onBlur={() => handleHourBlur('sH')}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') { e.preventDefault(); stepHour('sH', 1); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); stepHour('sH', -1); }
+              }}
+              style={{
+                width: '28px',
+                height: '100%',
+                padding: '0 2px',
+                fontSize: '13px',
+                fontWeight: 700,
+                textAlign: 'center',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                color: 'var(--text)'
+              }}
+              title="Hour: type (1-12) or use ▲▼ arrows"
+            />
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderLeft: '1px solid var(--border)',
+              height: '100%',
+              width: '16px'
+            }}>
+              <button
+                type="button"
+                onClick={() => stepHour('sH', 1)}
+                style={stepperBtnStyle}
+                title="Increase hour (wraps 12 to 1)"
+              >▲</button>
+              <button
+                type="button"
+                onClick={() => stepHour('sH', -1)}
+                style={{ ...stepperBtnStyle, borderTop: '1px solid var(--border)' }}
+                title="Decrease hour (wraps 1 to 12)"
+              >▼</button>
+            </div>
+          </div>
+
+          <span style={{ fontWeight: 700, color: 'var(--text2)', padding: '0 1px' }}>:</span>
+
+          {/* From Minute */}
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={2}
+            placeholder="00"
+            value={parts.sM}
+            onChange={(e) => handleMinuteChange('sM', e.target.value)}
+            onBlur={() => handleMinuteBlur('sM')}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowUp') { e.preventDefault(); stepMinute('sM', 1); }
+              if (e.key === 'ArrowDown') { e.preventDefault(); stepMinute('sM', -1); }
+            }}
+            style={{
+              width: '36px',
+              height: '30px',
+              padding: '3px 4px',
+              fontSize: '13px',
+              fontWeight: 600,
+              textAlign: 'center',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              color: 'var(--text)',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+            title="Minute: type (00-59) or use keyboard up/down arrows"
+          />
+
+          {/* From AM/PM */}
+          <select
+            style={selectStyle}
+            value={parts.sA}
+            onChange={(e) => handleAmpmChange('sA', e.target.value)}
+          >
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+
+        <span style={{ color: 'var(--text3)', fontWeight: 700, fontSize: '13px' }}>—</span>
+
+        {/* To Section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text2)', marginRight: '2px', textTransform: 'uppercase' }}>To</span>
+
+          {/* To Hour with Steppers */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            overflow: 'hidden',
+            height: '30px',
+            boxSizing: 'border-box'
+          }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={2}
+              value={parts.eH}
+              onChange={(e) => handleHourChange('eH', e.target.value)}
+              onBlur={() => handleHourBlur('eH')}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') { e.preventDefault(); stepHour('eH', 1); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); stepHour('eH', -1); }
+              }}
+              style={{
+                width: '28px',
+                height: '100%',
+                padding: '0 2px',
+                fontSize: '13px',
+                fontWeight: 700,
+                textAlign: 'center',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                color: 'var(--text)'
+              }}
+              title="Hour: type (1-12) or use ▲▼ arrows"
+            />
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderLeft: '1px solid var(--border)',
+              height: '100%',
+              width: '16px'
+            }}>
+              <button
+                type="button"
+                onClick={() => stepHour('eH', 1)}
+                style={stepperBtnStyle}
+                title="Increase hour (wraps 12 to 1)"
+              >▲</button>
+              <button
+                type="button"
+                onClick={() => stepHour('eH', -1)}
+                style={{ ...stepperBtnStyle, borderTop: '1px solid var(--border)' }}
+                title="Decrease hour (wraps 1 to 12)"
+              >▼</button>
+            </div>
+          </div>
+
+          <span style={{ fontWeight: 700, color: 'var(--text2)', padding: '0 1px' }}>:</span>
+
+          {/* To Minute */}
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={2}
+            placeholder="00"
+            value={parts.eM}
+            onChange={(e) => handleMinuteChange('eM', e.target.value)}
+            onBlur={() => handleMinuteBlur('eM')}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowUp') { e.preventDefault(); stepMinute('eM', 1); }
+              if (e.key === 'ArrowDown') { e.preventDefault(); stepMinute('eM', -1); }
+            }}
+            style={{
+              width: '36px',
+              height: '30px',
+              padding: '3px 4px',
+              fontSize: '13px',
+              fontWeight: 600,
+              textAlign: 'center',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              color: 'var(--text)',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+            title="Minute: type (00-59) or use keyboard up/down arrows"
+          />
+
+          {/* To AM/PM */}
+          <select
+            style={selectStyle}
+            value={parts.eA}
+            onChange={(e) => handleAmpmChange('eA', e.target.value)}
+          >
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+
+        {/* Compact Result Badge (Right aligned) */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <span style={{
+            background: 'var(--green-light)',
+            color: 'var(--green-dark)',
+            padding: '3px 8px',
+            borderRadius: '5px',
+            fontWeight: 700,
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+            border: '1px solid rgba(16, 185, 129, 0.25)'
+          }}>
+            ⏰ {value || `${parts.sH}:${parts.sM} ${parts.sA} – ${parts.eH}:${parts.eM} ${parts.eA}`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout, currentUser }) {
   const isClinicAdmin = currentUser?.role === 'clinic-admin';
@@ -434,12 +881,13 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
   // Stats calculation
   const booked = activeBookings.length;
   const done = activeBookings.filter(b => b.status === 'done').length;
-  const waiting = activeBookings.filter(b => b.status === 'waiting').length;
+  const waiting = activeBookings.filter(b => b.status === 'waiting' && !isBookingExpired(b)).length;
   const serving = activeBookings.filter(b => b.status === 'serving').length;
   const cancelled = activeBookings.filter(b => b.status === 'cancelled').length;
+  const expired = activeBookings.filter(b => b.status === 'expired' || isBookingExpired(b)).length;
 
   const currentServingPatient = activeBookings.find(b => b.status === 'serving');
-  const queuePatients = activeBookings.filter(b => b.status === 'waiting');
+  const queuePatients = activeBookings.filter(b => b.status === 'waiting' && !isBookingExpired(b));
 
   const handleAdminAction = async (payload) => {
     try {
@@ -448,15 +896,17 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clinicId: clinic._id, ...payload })
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({ success: false, error: 'Invalid response from server' }));
       if (json.success) {
-        onRefresh();
+        if (typeof onRefresh === 'function') {
+          onRefresh();
+        }
       } else {
-        alert('Action failed: ' + json.error);
+        alert('Action failed: ' + (json.error || 'Server error'));
       }
     } catch (e) {
-      console.error(e);
-      alert('Error performing admin action');
+      console.error('Error performing admin action:', e);
+      alert('Error performing admin action: ' + (e.message || 'Please check network connection'));
     }
   };
 
@@ -983,17 +1433,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                 </div>
               </div>
 
-              <div className="fg">
-                <label className="fl">Clinic Timings *</label>
-                <input
-                  type="text"
-                  className="fi-input"
-                  placeholder="e.g. 9:00 AM – 1:00 PM"
-                  value={onboardForm.timings}
-                  onChange={(e) => setOnboardForm({ ...onboardForm, timings: e.target.value })}
-                  required
-                />
-              </div>
+              <TimeRangeSelector
+                label="Clinic Timings"
+                value={onboardForm.timings}
+                onChange={(val) => setOnboardForm({ ...onboardForm, timings: val })}
+              />
 
               <div className="fg">
                 <label className="fl">Contact Number *</label>
@@ -1958,18 +2402,13 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                               ))}
                             </select>
                           </div>
-
-                          <div className="fg" style={{ margin: 0 }}>
-                            <label className="fl" style={{ fontSize: '11px', color: 'var(--text2)' }}>Timings</label>
-                            <input
-                              type="text"
-                              className="fi-input"
-                              value={editingDoc.timings}
-                              onChange={(e) => setEditingDoc({ ...editingDoc, timings: e.target.value })}
-                              required
-                            />
-                          </div>
                         </div>
+
+                        <TimeRangeSelector
+                          label="Doctor Timings"
+                          value={editingDoc.timings}
+                          onChange={(val) => setEditingDoc({ ...editingDoc, timings: val })}
+                        />
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <div className="fg" style={{ margin: 0 }}>
@@ -2152,16 +2591,11 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                   </div>
                 </div>
 
-                <div className="fg" style={{ margin: 0 }}>
-                  <label className="fl">Timings</label>
-                  <input
-                    type="text"
-                    className="fi-input"
-                    value={newDoc.timings}
-                    onChange={(e) => setNewDoc({ ...newDoc, timings: e.target.value })}
-                    required
-                  />
-                </div>
+                <TimeRangeSelector
+                  label="Doctor Timings"
+                  value={newDoc.timings}
+                  onChange={(val) => setNewDoc({ ...newDoc, timings: val })}
+                />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div className="fg" style={{ margin: 0 }}>
@@ -2279,7 +2713,7 @@ export default function AdminDashboard({ clinics, bookings, onRefresh, onLogout,
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '24px' }}>{c.icon || '🏥'}</span>
+                        <ClinicLogo clinic={c} size={36} />
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
                             {c.name}

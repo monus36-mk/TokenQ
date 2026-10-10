@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { isBookingExpired } from '@/lib/slotUtils';
+import { StarIcon } from './StarIcon';
 
 const isClinicOpen = (clinic) => {
   if (!clinic) return false;
@@ -29,7 +31,9 @@ export default function PatientHome({
 }) {
   const activeTokenCount = propActiveTokenCount !== undefined 
     ? propActiveTokenCount 
-    : (userBookings || []).filter(b => b.status === 'waiting' || b.status === 'serving').length;
+    : (userBookings || []).filter(b => {
+        return (b.status === 'waiting' || b.status === 'serving') && !isBookingExpired(b);
+      }).length;
 
   const prescriptionCount = propPrescriptionCount !== undefined 
     ? propPrescriptionCount 
@@ -285,8 +289,10 @@ export default function PatientHome({
     } catch (err) {}
   };
 
-  // Find active upcoming bookings
-  const activeBookings = userBookings.filter(b => b.status === 'waiting' || b.status === 'serving');
+  // Find active upcoming bookings (only non-expired slots)
+  const activeBookings = (userBookings || []).filter(b => {
+    return (b.status === 'waiting' || b.status === 'serving') && !isBookingExpired(b);
+  });
 
   // Find recent doctor-cancelled bookings (only non-dismissed)
   const doctorCancelledBookings = (userBookings || []).filter(b => 
@@ -671,7 +677,9 @@ export default function PatientHome({
 
               {/* Section 4: Rating */}
               <div>
-                <div className="filter-sec-title">⭐ Patient Ratings</div>
+                <div className="filter-sec-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <StarIcon size={14} /> Patient Ratings
+                </div>
                 <div className="filter-options-grid">
                   <button
                     className={`filter-option-pill ${ratingFilter === 'all' ? 'selected' : ''}`}
@@ -682,14 +690,16 @@ export default function PatientHome({
                   <button
                     className={`filter-option-pill ${ratingFilter === '4.5' ? 'selected' : ''}`}
                     onClick={() => setRatingFilter('4.5')}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                   >
-                    ⭐ 4.5+ (Top Rated)
+                    <StarIcon size={12} /> 4.5+ (Top Rated)
                   </button>
                   <button
                     className={`filter-option-pill ${ratingFilter === '4.0' ? 'selected' : ''}`}
                     onClick={() => setRatingFilter('4.0')}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                   >
-                    ⭐ 4.0+ (Popular)
+                    <StarIcon size={12} /> 4.0+ (Popular)
                   </button>
                 </div>
               </div>
@@ -1023,7 +1033,9 @@ export default function PatientHome({
                           <span style={{ color: 'var(--green-dark)', fontWeight: 600 }}>New</span>
                         ) : (
                           <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <span>{clinic.rating} ⭐</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: '#B45309' }}>
+                              {clinic.rating} <StarIcon size={14} />
+                            </span>
                             <span style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '2px' }}>({clinic.ratingCount} reviews)</span>
                           </span>
                         )}

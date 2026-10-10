@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Clinic from '@/models/Clinic';
 import Booking from '@/models/Booking';
 import { getMockClinics } from '@/lib/mockData';
+import { isBookingExpired } from '@/lib/slotUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export async function GET() {
     }).lean();
 
     const bookingsPerClinic = todaysBookings.reduce((acc, b) => {
-      if (b.status !== 'cancelled') {
+      if (b.status !== 'cancelled' && b.status !== 'expired' && !isBookingExpired(b)) {
         const cid = b.clinicId.toString();
         acc[cid] = (acc[cid] || 0) + 1;
       }
@@ -36,7 +37,7 @@ export async function GET() {
     }, {});
 
     const waitingPerClinic = todaysBookings.reduce((acc, b) => {
-      if (b.status === 'waiting' || b.status === 'serving') {
+      if ((b.status === 'waiting' || b.status === 'serving') && !isBookingExpired(b)) {
         const cid = b.clinicId.toString();
         acc[cid] = (acc[cid] || 0) + 1;
       }

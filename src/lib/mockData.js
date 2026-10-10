@@ -1,4 +1,5 @@
 // Fallback mock data when MongoDB is not running
+import { isBookingExpired } from './slotUtils';
 let clinics = [
   {
     _id: '60c72b2f9b1d8b22a0c4f101',
@@ -208,6 +209,14 @@ export function updateMockClinic(id, update) {
 }
 
 export function getMockBookings(phone = null) {
+  // Auto-expire mock bookings whose slot has concluded
+  bookings.forEach(b => {
+    if ((b.status === 'waiting' || b.status === 'serving') && isBookingExpired(b)) {
+      b.status = 'expired';
+      b.cancelReason = 'Doctor consultation time slot concluded';
+    }
+  });
+
   if (phone) {
     return bookings.filter(b => b.patientPhone === phone);
   }
@@ -215,6 +224,13 @@ export function getMockBookings(phone = null) {
 }
 
 export function getMockBookingsByClinic(clinicId) {
+  bookings.forEach(b => {
+    if ((b.status === 'waiting' || b.status === 'serving') && isBookingExpired(b)) {
+      b.status = 'expired';
+      b.cancelReason = 'Doctor consultation time slot concluded';
+    }
+  });
+
   return bookings.filter(b => b.clinicId === clinicId);
 }
 

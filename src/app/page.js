@@ -11,6 +11,8 @@ import PatientNotifications from '@/components/PatientNotifications';
 import PatientPrescriptionsList from '@/components/PatientPrescriptionsList';
 import PatientProfile from '@/components/PatientProfile';
 import PrescriptionViewer from '@/components/PrescriptionViewer';
+import { isBookingExpired } from '@/lib/slotUtils';
+import { StarIcon, StarRatingRow } from '@/components/StarIcon';
 
 const parseTokenNum = (tok) => {
   const m = String(tok || '').match(/\d+/);
@@ -599,7 +601,9 @@ export default function Home() {
   })();
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const activeTokenCount = userBookings.filter(b => b.status === 'waiting' || b.status === 'serving').length;
+  const activeTokenCount = userBookings.filter(b => {
+    return (b.status === 'waiting' || b.status === 'serving') && !isBookingExpired(b);
+  }).length;
   const userRxBookings = userBookings.filter(b => Boolean(b.prescription || (b.medicines && b.medicines.length > 0) || b.clinicalNotes || b.followUpDate));
   const unreadPrescriptionCount = userRxBookings.filter(b => !seenRxIds.includes(String(b._id))).length;
 
@@ -890,7 +894,7 @@ export default function Home() {
               <ClinicDetail
                 clinic={selectedClinic}
                 bookings={bookings}
-                waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
+                waitingCount={bookings.filter(b => b.clinicId === selectedClinic._id && b.status === 'waiting' && !isBookingExpired(b) && new Date(b.createdAt).toDateString() === new Date().toDateString()).length}
                 onBack={handleBackToHome}
                 onStartBooking={handleStartBooking}
                 onRequireAuth={handleRequireAuth}
@@ -933,8 +937,8 @@ export default function Home() {
                   // Filter today's doctor bookings and sort strictly ascending by token number!
                   const doctorBookings = bookings
                     .filter(b =>
-                      b.clinicId === selectedToken.clinicId &&
-                      b.doctorName === selectedToken.doctorName &&
+                      String(b.clinicId) === String(selectedToken.clinicId) &&
+                      (b.doctorName || '').trim().toLowerCase() === (selectedToken.doctorName || '').trim().toLowerCase() &&
                       new Date(b.createdAt || Date.now()).toDateString() === tokenDateStr
                     )
                     .sort((a, b) => {
@@ -944,8 +948,10 @@ export default function Home() {
                       return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
                     });
 
-                  // Active queue only (serving + waiting) -> Done tokens automatically disappear so next/serving is on top!
-                  const activeQueueBookings = doctorBookings.filter(b => b.status === 'serving' || b.status === 'waiting');
+                  // Active queue only (serving + waiting) -> Concluded/done tokens automatically disappear
+                  const selectedDocInfo = clinic.doctors?.find(d => d.name === selectedToken.doctorName);
+                  const docDelay = selectedDocInfo?.delayMinutes || 0;
+                  const activeQueueBookings = doctorBookings.filter(b => (b.status === 'serving' || b.status === 'waiting') && !isBookingExpired(b, docDelay));
 
                   const servingBooking = doctorBookings.find(b => b.status === 'serving');
                   const nowServingToken = servingBooking ? servingBooking.tokenNumber : 'None';
@@ -961,8 +967,6 @@ export default function Home() {
                   const waitingAhead = selectedToken.status === 'serving'
                     ? 0
                     : activeBefore.length;
-                  const selectedDocInfo = clinic.doctors?.find(d => d.name === selectedToken.doctorName);
-                  const docDelay = selectedDocInfo?.delayMinutes || 0;
 
                   const estWaitMin = selectedToken.status === 'serving'
                     ? 0
@@ -1071,28 +1075,20 @@ export default function Home() {
                                 flexDirection: 'column',
                                 gap: '12px'
                               }}>
-                                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-                                  ⭐ Rate your consultation experience
+                                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <StarIcon size={16} /> Rate your consultation experience
                                 </div>
                                 <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '-6px' }}>
                                   Help others find the best care at this clinic
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <span
-                                      key={star}
-                                      onClick={() => setActiveRating(star)}
-                                      style={{
-                                        fontSize: '28px',
-                                        cursor: 'pointer',
-                                        opacity: star <= activeRating ? '1' : '.3',
-                                        transition: 'opacity 0.15s'
-                                      }}
-                                    >
-                                      ⭐
-                                    </span>
-                                  ))}
+                                <div style={{ margin: '4px 0' }}>
+                                  <StarRatingRow
+                                    rating={activeRating}
+                                    size={26}
+                                    interactive={true}
+                                    onRate={(star) => setActiveRating(star)}
+                                  />
                                 </div>
 
                                 <input
@@ -1145,7 +1141,9 @@ export default function Home() {
                                 fontWeight: 600,
                                 animation: 'fadeIn 0.3s ease'
                               }}>
-                                ❤️ Thank you! Your rating of {activeRating} ⭐ has been shared.
+                                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                  ❤️ Thank you! Your rating of {activeRating} <StarIcon size={13} /> has been shared.
+                                </div>
                               </div>
                             )}
 
@@ -1337,6 +1335,152 @@ export default function Home() {
                                     <span>Call {clinic.name || 'Clinic'} ({clinic.contact})</span>
                                   </a>
                                 )}
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={handleBackToHome}
+                              style={{
+                                width: '100%',
+                                padding: '12px',
+                                background: 'var(--surface2)',
+                                color: 'var(--text)',
+                                border: '1.5px solid var(--border)',
+                                borderRadius: '10px',
+                                fontSize: '13.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ← Back to home
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Consultation / Session Expired Screen (For concluded slot or past day tokens)
+                  const isTodaySession = new Date(selectedToken.createdAt || Date.now()).toDateString() === new Date().toDateString();
+                  const isConcluded = selectedToken.status === 'expired' || isBookingExpired(selectedToken, docDelay) || (!isTodaySession && selectedToken.status !== 'done' && selectedToken.status !== 'cancelled');
+                  if (isConcluded) {
+                    const cleanDocName = formatDoctorTitle(selectedToken.doctorName);
+                    const bookingDateFormatted = new Date(selectedToken.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric'
+                    });
+
+                    return (
+                      <div className="scrollable" style={{ flex: 1, overflowY: 'auto' }}>
+                        <div className="pad">
+                          <div className="token-hero" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderColor: '#64748b' }}>
+                            <div className="token-lbl" style={{ color: '#cbd5e1' }}>
+                              Session Concluded ({cleanDocName})
+                            </div>
+                            <div className="token-num" style={{ color: '#e2e8f0', opacity: 0.85 }}>
+                              {selectedToken.tokenNumber}
+                            </div>
+                            <div className="token-clinic" style={{ color: '#cbd5e1' }}>
+                              {clinic.name || 'Clinic'} · {selectedToken.slot || (isTodaySession ? 'Today' : `Booked for ${bookingDateFormatted}`)}
+                            </div>
+                            <div style={{ marginTop: '10px', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <span className="pill" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 600 }}>
+                                ⏳ Consultation Time Slot Ended
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+                            <div style={{
+                              background: '#F8FAFC',
+                              border: '1.5px solid #CBD5E1',
+                              borderLeft: '5px solid #64748B',
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              display: 'flex',
+                              gap: '12px',
+                              alignItems: 'flex-start'
+                            }}>
+                              <span style={{ fontSize: '24px', flexShrink: 0, marginTop: '2px' }}>ℹ️</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#1E293B', marginBottom: '3px' }}>
+                                  Doctor Time Slot Concluded
+                                </div>
+                                <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.45 }}>
+                                  {isTodaySession ? (
+                                    <>The doctor&apos;s consultation time slot (<strong>{selectedToken.slot}</strong>) has finished. Uncalled tokens automatically conclude and clear from the active live queue.</>
+                                  ) : (
+                                    <>This token was booked for <strong>{bookingDateFormatted}</strong> ({selectedToken.slot}). Since that clinic session has concluded, this token is no longer active in today&apos;s live queue.</>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{
+                              background: 'var(--surface2)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '8px',
+                              padding: '12px 14px',
+                              fontSize: '12.5px',
+                              color: 'var(--text2)',
+                              lineHeight: 1.4
+                            }}>
+                              💳 <strong>Fee Status:</strong> {selectedToken.feePaid ? `Consultation fee ₹${selectedToken.feePaid} was marked 'Pay at Clinic'. No charges were deducted.` : 'No payment was deducted.'}
+                            </div>
+
+                            <div style={{
+                              background: 'rgba(16, 185, 129, 0.05)',
+                              border: '1.5px solid rgba(16, 185, 129, 0.3)',
+                              borderRadius: 'var(--radius)',
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '20px' }}>🩺</span>
+                                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--green-dark)' }}>
+                                  Book Today&apos;s Consultation
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '12.5px', color: 'var(--text2)', lineHeight: 1.4 }}>
+                                You can book a fresh live token for today at {clinic.name || 'this clinic'} to join today&apos;s consultation queue.
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (clinic && clinic._id) {
+                                      setSelectedClinic(clinic);
+                                      setSelectedDoctor(null);
+                                      setSelectedToken(null);
+                                      setPatientScreen('detail');
+                                    } else {
+                                      handleBackToHome();
+                                    }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: 'var(--green-dark)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '14px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                                  }}
+                                >
+                                  <span>🎟️</span>
+                                  <span>Book Token for Today</span>
+                                </button>
                               </div>
                             </div>
 
@@ -1644,7 +1788,9 @@ export default function Home() {
 
                     {(() => {
                       const activeUserBookings = (userBookings || [])
-                        .filter(b => b.status === 'waiting' || b.status === 'serving')
+                        .filter(b => {
+                          return (b.status === 'waiting' || b.status === 'serving') && !isBookingExpired(b);
+                        })
                         .sort((a, b) => {
                           if (a.status === 'serving' && b.status !== 'serving') return -1;
                           if (b.status === 'serving' && a.status !== 'serving') return 1;
@@ -1864,7 +2010,10 @@ export default function Home() {
 
                     {(() => {
                       const pastBookings = (userBookings || [])
-                        .filter(b => b.status === 'done' || b.status === 'cancelled')
+                        .filter(b => {
+                          const isToday = new Date(b.createdAt || Date.now()).toDateString() === new Date().toDateString();
+                          return !isToday || b.status === 'done' || b.status === 'cancelled' || b.status === 'expired' || isBookingExpired(b);
+                        })
                         .sort((a, b) => {
                           const dateA = new Date(a.cancelledAt || a.createdAt || 0).getTime();
                           const dateB = new Date(b.cancelledAt || b.createdAt || 0).getTime();
@@ -1888,6 +2037,8 @@ export default function Home() {
                         });
                         const isExpanded = expandedPastTokenId === booking._id;
                         const hasEMR = Boolean(booking.clinicalNotes || booking.prescription);
+                        const isBookingToday = new Date(booking.createdAt || Date.now()).toDateString() === new Date().toDateString();
+                        const isExpiredPast = booking.status === 'expired' || isBookingExpired(booking) || (!isBookingToday && booking.status !== 'done' && booking.status !== 'cancelled');
 
                         return (
                           <div
@@ -1908,8 +2059,11 @@ export default function Home() {
                                   {dateStr} · Token {booking.tokenNumber} · {formatDoctorTitle(booking.doctorName)}
                                 </div>
                               </div>
-                              <span className={`pill ${booking.status === 'done' ? 'pg' : 'pr'}`}>
-                                {booking.status === 'done' ? 'Completed' : 'Cancelled'}
+                              <span
+                                className={`pill ${booking.status === 'done' ? 'pg' : booking.status === 'cancelled' ? 'pr' : 'py'}`}
+                                style={isExpiredPast ? { background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', fontSize: '11px' } : undefined}
+                              >
+                                {booking.status === 'done' ? 'Completed' : booking.status === 'cancelled' ? 'Cancelled' : 'Slot Concluded'}
                               </span>
                             </div>
 
@@ -2154,17 +2308,12 @@ export default function Home() {
                             {booking.status === 'done' && (
                               <div style={{ marginTop: '9px', paddingTop: '9px', borderTop: '1px solid var(--border)' }}>
                                 <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>Rate your experience</div>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <span
-                                      key={star}
-                                      onClick={() => handleRateStar(`stars-${booking._id}`, star)}
-                                      style={{ fontSize: '20px', cursor: 'pointer', opacity: star <= (ratings[`stars-${booking._id}`] || 5) ? '1' : '.3' }}
-                                    >
-                                      ⭐
-                                    </span>
-                                  ))}
-                                </div>
+                                <StarRatingRow
+                                  rating={ratings[`stars-${booking._id}`] || 5}
+                                  size={18}
+                                  interactive={true}
+                                  onRate={(star) => handleRateStar(`stars-${booking._id}`, star)}
+                                />
                               </div>
                             )}
                           </div>

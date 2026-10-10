@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { StarIcon } from './StarIcon';
+import { ClinicLogo } from './ClinicLogo';
 
 export default function PatientProfile({
   currentUser,
@@ -412,12 +414,13 @@ export default function PatientProfile({
                   style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-sm)', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
-                      {c.icon || '🏥'}
-                    </div>
+                    <ClinicLogo clinic={c} size={38} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{c.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text2)' }}>{c.address} · {c.rating || 5} ⭐</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{c.address} · {c.rating || 5}</span>
+                        <StarIcon size={12} />
+                      </div>
                     </div>
                   </div>
                   <button

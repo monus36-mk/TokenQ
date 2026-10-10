@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Booking from '@/models/Booking';
 import Clinic from '@/models/Clinic';
 import { getMockBookings, getMockBookingsByClinic, createMockBooking } from '@/lib/mockData';
+import { isBookingExpired } from '@/lib/slotUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,52 @@ export async function GET(request) {
 
     try {
       await dbConnect();
+
+      // Auto-expire uncompleted bookings from previous days (IST midnight boundary)
+      const now = new Date();
+      const utcOffset = 5.5 * 60 * 60 * 1000;
+      const istTime = new Date(now.getTime() + utcOffset);
+      istTime.setUTCHours(0, 0, 0, 0);
+      const startOfDay = new Date(istTime.getTime() - utcOffset);
+
+      await Booking.updateMany(
+        {
+          status: { $in: ['waiting', 'serving'] },
+          createdAt: { $lt: startOfDay }
+        },
+        {
+          $set: {
+            status: 'expired',
+            cancelReason: 'Consultation session concluded for previous day'
+          }
+        }
+      );
+
+      // Auto-expire uncompleted bookings from today whose doctor time slot has ended
+      const activeTodayBookings = await Booking.find({
+        status: { $in: ['waiting', 'serving'] },
+        createdAt: { $gte: startOfDay }
+      });
+
+      const slotExpiredIds = [];
+      for (const b of activeTodayBookings) {
+        if (isBookingExpired(b)) {
+          slotExpiredIds.push(b._id);
+        }
+      }
+
+      if (slotExpiredIds.length > 0) {
+        await Booking.updateMany(
+          { _id: { $in: slotExpiredIds } },
+          {
+            $set: {
+              status: 'expired',
+              cancelReason: 'Doctor consultation time slot concluded'
+            }
+          }
+        );
+      }
+
       let query = {};
       if (phone) {
         query.patientPhone = phone;
@@ -97,11 +144,17 @@ export async function POST(request) {
       });
 
       if (existingActiveBooking) {
-        return NextResponse.json({
-          success: false,
-          error: `Patient "${patientName}" already has an active booking at ${clinic.name} today (Token ${existingActiveBooking.tokenNumber})`,
-          existingBooking: existingActiveBooking
-        }, { status: 400 });
+        if (isBookingExpired(existingActiveBooking)) {
+          existingActiveBooking.status = 'expired';
+          existingActiveBooking.cancelReason = 'Doctor consultation time slot concluded';
+          await existingActiveBooking.save();
+        } else {
+          return NextResponse.json({
+            success: false,
+            error: `Patient "${patientName}" already has an active booking at ${clinic.name} today (Token ${existingActiveBooking.tokenNumber})`,
+            existingBooking: existingActiveBooking
+          }, { status: 400 });
+        }
       }
 
       const todaysBookings = await Booking.find({
@@ -164,7 +217,8 @@ export async function POST(request) {
 
       const existingMock = clinicMockBookings.find(b =>
         b.patientName.trim().toLowerCase() === patientName.trim().toLowerCase() &&
-        (b.status === 'waiting' || b.status === 'serving')
+        (b.status === 'waiting' || b.status === 'serving') &&
+        !isBookingExpired(b)
       );
       if (existingMock) {
         return NextResponse.json({

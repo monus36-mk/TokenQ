@@ -60,7 +60,7 @@ const BookingSchema = new mongoose.Schema({
   status: {
     type: String,
     default: 'waiting',
-    enum: ['waiting', 'serving', 'done', 'cancelled'],
+    enum: ['waiting', 'serving', 'done', 'cancelled', 'expired'],
   },
   doctorName: {
     type: String,
